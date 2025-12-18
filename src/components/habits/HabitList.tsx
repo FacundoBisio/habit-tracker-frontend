@@ -1,78 +1,72 @@
-import type { Habit, HabitCheck, HabitFrequency } from "../../types/habit";
+import { AnimatePresence, motion } from "framer-motion";
+import { Plus } from "lucide-react";
 import { HabitCard } from "./HabitCard";
-import { useState } from "react";
+import { Button } from "../ui/Button";
+import type { Habit, HabitCheck } from "../../types/habit";
 
-interface Props {
+interface HabitListProps {
   habits: Habit[];
   checks: HabitCheck[];
   date: string;
   onToggle: (habitId: string, date: string) => void;
-  onAddHabit: (name: string, frequency: HabitFrequency) => void;
+  onAdd: () => void;
+  getStats: (habit: Habit, date: string) => { completed: boolean; target: number; current: number };
 }
 
-export function HabitList({
-  habits,
-  checks,
-  date,
-  onToggle,
-  onAddHabit,
-}: Props) {
-  const [newHabit, setNewHabit] = useState("");
-  const [frequency, setFrequency] = useState<HabitFrequency>("daily");
-
-  const handleAdd = () => {
-    const name = newHabit.trim();
-    if (!name) return;
-    onAddHabit(name, frequency);
-    setNewHabit("");
-  };
+export function HabitList({ habits, checks, date, onToggle, onAdd, getStats }: HabitListProps) {
+  // Sort: Incomplete first, then completed
+  const sortedHabits = [...habits].sort((a, b) => {
+    const statsA = getStats(a, date);
+    const statsB = getStats(b, date);
+    if (statsA.completed === statsB.completed) return 0;
+    return statsA.completed ? 1 : -1;
+  });
 
   return (
-    <div>
-      {/* form mini para crear hábito */}
-      <div className="flex gap-2 mb-4">
-        <input
-          className="flex-1 bg-slate-900/60 border border-slate-800 rounded-xl px-3 py-2 text-sm outline-none focus:border-emerald-500"
-          placeholder="Nuevo hábito (ej: Leer 10 páginas)"
-          value={newHabit}
-          onChange={(e) => setNewHabit(e.target.value)}
-        />
-        <select
-          className="bg-slate-900/60 border border-slate-800 rounded-xl px-2 text-xs text-slate-300"
-          value={frequency}
-          onChange={(e) => setFrequency(e.target.value as HabitFrequency)}
-        >
-          <option value="daily">Diario</option>
-          <option value="weekly">Semanal</option>
-          <option value="custom">Custom</option>
-        </select>
-        <button
-          onClick={handleAdd}
-          className="text-xs px-3 rounded-xl bg-emerald-500 text-slate-950 font-semibold hover:bg-emerald-400 transition-colors"
-        >
-          Añadir
-        </button>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+         <h2 className="text-xl font-semibold text-slate-100">Tus Hábitos</h2>
+         <Button onClick={onAdd} size="sm" variant="secondary" className="gap-2">
+           <Plus size={16} />
+           Nuevo
+         </Button>
       </div>
 
-      {habits.length === 0 && (
-        <p className="text-xs text-slate-500">
-          Todavía no tenés hábitos. Creá el primero arriba 👆
-        </p>
-      )}
-
-      {habits.map((h) => {
-        const checked = checks.some(
-          (c) => c.habitId === h.id && c.date === date
-        );
-        return (
-          <HabitCard
-            key={h.id}
-            habit={h}
-            checked={checked}
-            onToggle={() => onToggle(h.id, date)}
-          />
-        );
-      })}
+      <div className="grid gap-3">
+        <AnimatePresence mode="popLayout">
+          {sortedHabits.map((habit) => {
+             const stats = getStats(habit, date);
+             return (
+               <motion.div
+                 key={habit.id}
+                 layout
+                 initial={{ opacity: 0, x: -20 }}
+                 animate={{ opacity: 1, x: 0 }}
+                 exit={{ opacity: 0, scale: 0.9 }}
+               >
+                 <HabitCard 
+                    habit={habit}
+                    completed={stats.completed}
+                    stats={stats}
+                    streak={0} // To implement properly later
+                    onToggle={() => onToggle(habit.id, date)}
+                 />
+               </motion.div>
+             );
+          })}
+        </AnimatePresence>
+        
+        {habits.length === 0 && (
+            <motion.div 
+               initial={{ opacity: 0 }} 
+               animate={{ opacity: 1 }}
+               className="text-center py-12 text-slate-500 border border-dashed border-slate-800 rounded-2xl"
+            >
+                <p>No tienes hábitos activos hoy.</p>
+                <Button variant="ghost" className="mt-2" onClick={onAdd}>Empezar ahora</Button>
+            </motion.div>
+        )}
+      </div>
     </div>
   );
 }

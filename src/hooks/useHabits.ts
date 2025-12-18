@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { nanoid } from "nanoid";
-import type { Habit, HabitCheck, HabitFrequency } from "../types/habit";
+import { startOfWeek, endOfWeek, isWithinInterval, parseISO } from "date-fns";
+import type { Habit, HabitCheck, HabitFrequency, HabitCategory } from "../types/habit";
 
 const HABITS_KEY = "habit-tracker:habits";
 const CHECKS_KEY = "habit-tracker:checks";
@@ -30,11 +31,21 @@ export function useHabits() {
     localStorage.setItem(CHECKS_KEY, JSON.stringify(checks));
   }, [checks]);
 
-  const addHabit = (name: string, frequency: HabitFrequency) => {
+  const addHabit = (
+    name: string,
+    frequency: HabitFrequency,
+    category: HabitCategory = "other",
+    color: string = "gray",
+    icon: string = "activity"
+  ) => {
     const newHabit: Habit = {
       id: nanoid(),
       name,
       frequency,
+      category,
+      color,
+      icon,
+      archived: false,
       createdAt: new Date().toISOString(),
     };
     setHabits((prev) => [...prev, newHabit]);
@@ -52,10 +63,38 @@ export function useHabits() {
     });
   };
 
+  const getHabitStats = (habit: Habit, date: string) => {
+    if (habit.frequency.type === "daily") {
+      const isCompleted = checks.some(
+        (c) => c.habitId === habit.id && c.date === date
+      );
+      return { completed: isCompleted, target: 1, current: isCompleted ? 1 : 0 };
+    } else {
+      // Weekly logic
+      const targetDate = parseISO(date);
+      const start = startOfWeek(targetDate, { weekStartsOn: 1 });
+      const end = endOfWeek(targetDate, { weekStartsOn: 1 });
+      
+      const weeklyChecks = checks.filter((c) => {
+        if (c.habitId !== habit.id) return false;
+        const checkDate = parseISO(c.date);
+        return isWithinInterval(checkDate, { start, end });
+      });
+
+      const count = weeklyChecks.length;
+      return {
+        completed: count >= habit.frequency.target,
+        target: habit.frequency.target,
+        current: count,
+      };
+    }
+  };
+
   return {
     habits,
     checks,
     addHabit,
     toggleHabitForDate,
+    getHabitStats,
   };
 }

@@ -1,1 +1,15 @@
 @import "tailwindcss";
+
+@layer base {
+  body {
+    @apply bg-slate-950 text-slate-50 antialiased selection:bg-emerald-500/30 selection:text-emerald-200;
+  }
+}
+
+@utility glass {
+  @apply bg-slate-900/60 backdrop-blur-md border border-slate-800/50;
+}
+
+@utility glass-hover {
+  @apply hover:bg-slate-800/60 hover:border-slate-700/50 transition-all duration-300;
+}
