@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Check, Flame, Trophy } from "lucide-react";
+import { Check, Flame, Trophy, Pencil } from "lucide-react";
 import { Card } from "../ui/Card";
 import { cn } from "../../utils/cn";
 import type { Habit } from "../../types/habit";
@@ -13,21 +13,29 @@ interface HabitCardProps {
     current: number;
   };
   onToggle: () => void;
+  onEdit: () => void;
 }
 
-export function HabitCard({ habit, completed, streak, stats, onToggle }: HabitCardProps) {
+export function HabitCard({ habit, completed, streak, stats, onToggle, onEdit }: HabitCardProps) {
   // Determine color theme based on habit color or default
   // For now, using a dynamic utility class approach might be tricky with purging, 
   // so we'll map a few presets or just use inline styles for specifics.
   
   return (
-    <Card className="group relative overflow-hidden transition-all hover:glass-hover">
-      <div className="flex items-center gap-4">
+    <Card className="group relative overflow-hidden transition-all hover:glass-hover p-3">
+       <button 
+        onClick={(e) => { e.stopPropagation(); onEdit(); }}
+        className="absolute top-2 right-2 p-1 rounded-lg text-slate-500 hover:text-white hover:bg-slate-700/50 opacity-0 group-hover:opacity-100 transition-all z-20"
+      >
+        <Pencil size={12} />
+      </button>
+
+      <div className="flex items-center gap-3">
         {/* Check Button */}
         <button
           onClick={onToggle}
           className={cn(
-            "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border-2 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950",
+            "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-2 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950",
             completed
               ? "border-emerald-500 bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.4)]"
               : "border-slate-700 bg-slate-800/50 text-transparent hover:border-emerald-500/50"
@@ -37,22 +45,22 @@ export function HabitCard({ habit, completed, streak, stats, onToggle }: HabitCa
             initial={false}
             animate={{ scale: completed ? 1 : 0.5, opacity: completed ? 1 : 0 }}
           >
-            <Check strokeWidth={3} size={20} />
+            <Check strokeWidth={3} size={14} />
           </motion.div>
         </button>
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <h3 className={cn("font-medium truncate text-lg transition-colors", completed ? "text-slate-400 line-through" : "text-slate-100")}>
+          <h3 className={cn("font-medium truncate text-base transition-colors", completed ? "text-slate-400 line-through" : "text-slate-100")}>
             {habit.name}
           </h3>
-          <div className="flex items-center gap-3 text-xs text-slate-400 mt-1">
+          <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
             <span className="flex items-center gap-1">
                {habit.frequency.type === 'daily' ? 'Diario' : `${habit.frequency.target}x / sem`}
             </span>
             {streak > 0 && (
                 <span className="flex items-center gap-1 text-orange-400 font-medium">
-                    <Flame size={12} /> {streak} d
+                    <Flame size={10} /> {streak} d
                 </span>
             )}
             {stats.target > 1 && (

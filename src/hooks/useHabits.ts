@@ -90,10 +90,23 @@ export function useHabits() {
     }
   };
 
+  const updateHabit = (id: string, updates: Partial<Habit>) => {
+    setHabits((prev) =>
+      prev.map((habit) => (habit.id === id ? { ...habit, ...updates } : habit))
+    );
+  };
+
+  const deleteHabit = (id: string) => {
+    setHabits((prev) => prev.filter((habit) => habit.id !== id));
+    setChecks((prev) => prev.filter((check) => check.habitId !== id));
+  };
+
   return {
     habits,
     checks,
     addHabit,
+    updateHabit,
+    deleteHabit,
     toggleHabitForDate,
     getHabitStats,
   };

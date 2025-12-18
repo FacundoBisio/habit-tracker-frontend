@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Plus } from "lucide-react";
 import { HabitCard } from "./HabitCard";
+import { EditHabitModal } from "./EditHabitModal";
 import { Button } from "../ui/Button";
 import type { Habit, HabitCheck } from "../../types/habit";
 
@@ -10,10 +12,14 @@ interface HabitListProps {
   date: string;
   onToggle: (habitId: string, date: string) => void;
   onAdd: () => void;
+  onUpdate: (id: string, updates: Partial<Habit>) => void;
+  onDelete: (id: string) => void;
   getStats: (habit: Habit, date: string) => { completed: boolean; target: number; current: number };
 }
 
-export function HabitList({ habits, checks, date, onToggle, onAdd, getStats }: HabitListProps) {
+export function HabitList({ habits, checks, date, onToggle, onAdd, onUpdate, onDelete, getStats }: HabitListProps) {
+  const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
+
   // Sort: Incomplete first, then completed
   const sortedHabits = [...habits].sort((a, b) => {
     const statsA = getStats(a, date);
@@ -50,6 +56,7 @@ export function HabitList({ habits, checks, date, onToggle, onAdd, getStats }: H
                     stats={stats}
                     streak={0} // To implement properly later
                     onToggle={() => onToggle(habit.id, date)}
+                    onEdit={() => setEditingHabit(habit)}
                  />
                </motion.div>
              );
@@ -67,6 +74,14 @@ export function HabitList({ habits, checks, date, onToggle, onAdd, getStats }: H
             </motion.div>
         )}
       </div>
+
+      <EditHabitModal 
+        isOpen={!!editingHabit}
+        habit={editingHabit}
+        onClose={() => setEditingHabit(null)}
+        onUpdate={onUpdate}
+        onDelete={onDelete}
+      />
     </div>
   );
 }
