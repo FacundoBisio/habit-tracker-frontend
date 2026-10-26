@@ -1,18 +1,95 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #ffffff;
-  --fg: #0f172a;
+  --bg: #fafaf9;
+  --surface: #ffffff;
+  --surface-2: #f4f4f2;
+  --border: #e7e5e4;
+  --fg: #1c1917;
+  --muted: #78716c;
+  --accent: #0f766e;
+  --accent-soft: #ccfbf1;
+  --accent-fg: #ffffff;
+  --danger: #b91c1c;
+  color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0b1020;
-    --fg: #e5e7eb;
+:root:not([data-theme="light"]) {
+  @media (prefers-color-scheme: dark) {
+    --bg: #0c0a09;
+    --surface: #171412;
+    --surface-2: #211d1a;
+    --border: #2b2623;
+    --fg: #f5f5f4;
+    --muted: #a8a29e;
+    --accent: #2dd4bf;
+    --accent-soft: #123b37;
+    --accent-fg: #042f2e;
+    --danger: #f87171;
+    color-scheme: dark;
   }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0c0a09;
+  --surface: #171412;
+  --surface-2: #211d1a;
+  --border: #2b2623;
+  --fg: #f5f5f4;
+  --muted: #a8a29e;
+  --accent: #2dd4bf;
+  --accent-soft: #123b37;
+  --accent-fg: #042f2e;
+  --danger: #f87171;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-fg: var(--accent-fg);
+  --color-danger: var(--danger);
+  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
   background: var(--bg);
   color: var(--fg);
+  font-family: var(--font-sans);
+  overscroll-behavior-y: none;
+}
+
+/* iOS no hace zoom al enfocar si el texto es >= 16px */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+
+button {
+  touch-action: manipulation;
+}
+
+.no-select {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
