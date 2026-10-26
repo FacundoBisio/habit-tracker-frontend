@@ -26,9 +26,9 @@ function BallFigure({ activity, size }: { activity: Activity; size: number }) {
       <svg width={size} height={size * 0.875} viewBox="0 0 160 140" aria-hidden>
         <defs>
           <radialGradient id="ball-body" cx="0.36" cy="0.3" r="0.8">
-            <stop offset="0%" style={{ stopColor: "color-mix(in srgb, var(--accent) 45%, white)" }} />
-            <stop offset="55%" style={{ stopColor: "var(--accent)" }} />
-            <stop offset="100%" style={{ stopColor: "color-mix(in srgb, var(--accent) 62%, black)" }} />
+            <stop offset="0%" stopColor="#7fe3b8" />
+            <stop offset="55%" stopColor="#1fa971" />
+            <stop offset="100%" stopColor="#0f6b45" />
           </radialGradient>
         </defs>
         <ellipse cx="80" cy="131" rx="44" ry="5" fill="var(--fg)" opacity="0.14" />

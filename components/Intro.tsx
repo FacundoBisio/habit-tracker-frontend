@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Flame, Target, Trophy } from "lucide-react";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import type { Activity } from "@/lib/mascot";
 import { MascotFigure } from "./Mascot";
 
@@ -28,17 +28,24 @@ function Line({ children, delay, green = false, reduced }: { children: string; d
   );
 }
 
-/** La bola asoma desde el borde inferior (recortado por abajo) y sube con un resorte. */
-function Peek({ activity, reduced }: { activity: Activity; reduced: boolean }) {
+/** Tamaño de la bola: más chica en pantallas bajas para que no pise el contenido ni los botones. */
+const subscribeResize = (cb: () => void) => {
+  window.addEventListener("resize", cb);
+  return () => window.removeEventListener("resize", cb);
+};
+const ballSize = () => (window.innerHeight < 700 ? 140 : 210);
+const useBallSize = () => useSyncExternalStore(subscribeResize, ballSize, () => 210);
+
+/** La bola, entera y por encima de todo, sube con un resorte desde abajo (sin recortes). */
+function Peek({ activity, reduced, size }: { activity: Activity; reduced: boolean; size: number }) {
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 flex h-[130px] justify-center overflow-hidden">
+    <div className="pointer-events-none absolute inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-30 flex justify-center">
       <motion.div
-        style={{ marginTop: -62 }}
-        initial={reduced ? { opacity: 0 } : { y: 160 }}
+        initial={reduced ? { opacity: 0 } : { y: 260 }}
         animate={reduced ? { opacity: 1 } : { y: 0 }}
         transition={{ type: "spring", stiffness: 130, damping: 15, delay: reduced ? 0 : 0.55 }}
       >
-        <MascotFigure activity={activity} size={230} interactive={false} />
+        <MascotFigure activity={activity} size={size} interactive={false} />
       </motion.div>
     </div>
   );
@@ -68,7 +75,6 @@ function SlideOne({ reduced }: { reduced: boolean }) {
           <Line delay={0.71} reduced={reduced}>SUPERHÁBITOS</Line>
         </h1>
       </div>
-      <Peek activity="wave" reduced={reduced} />
     </>
   );
 }
@@ -106,19 +112,19 @@ function SlideTwo({ reduced }: { reduced: boolean }) {
           ))}
         </ul>
       </div>
-      <Peek activity="lift" reduced={reduced} />
     </>
   );
 }
 
 /**
- * Entrada con pantallazos a pantalla completa: tipografía enorme, la bola asomando desde abajo y
+ * Entrada con pantallazos a pantalla completa: tipografía enorme, la bola entera arriba de todo y
  * un revelado circular entre pantallas. Siempre oscuro. Con "menos movimiento" solo hay fundidos.
  */
 export function Intro({ onDone }: { onDone: () => void }) {
   const reduced = useReducedMotion() ?? false;
   const [index, setIndex] = useState(0);
   const last = index === SLIDES - 1;
+  const ball = useBallSize();
   const go = (n: number) => setIndex(Math.max(0, Math.min(SLIDES - 1, n)));
 
   return (
@@ -151,7 +157,9 @@ export function Intro({ onDone }: { onDone: () => void }) {
         </motion.section>
       </AnimatePresence>
 
-      {/* Controles: sobre las pantallas, por encima del slime */}
+      <Peek key={index} activity={index === 0 ? "wave" : "lift"} reduced={reduced} size={ball} />
+
+      {/* Controles: sobre las pantallas, encima de la bola */}
       <button
         onClick={onDone}
         style={{ right: "max(0.75rem, calc(50vw - 14rem))" }}
@@ -159,7 +167,10 @@ export function Intro({ onDone }: { onDone: () => void }) {
       >
         Saltar
       </button>
-      <div className="absolute bottom-[150px] left-1/2 z-20 flex w-full max-w-md -translate-x-1/2 items-center justify-between px-6">
+      <div
+        style={{ bottom: `calc(${Math.round(ball * 0.875) + 36}px + env(safe-area-inset-bottom))` }}
+        className="absolute left-1/2 z-20 flex w-full max-w-md -translate-x-1/2 items-center justify-between px-6"
+      >
         <div className="flex items-center gap-1.5" aria-hidden>
           {Array.from({ length: SLIDES }, (_, i) => (
             <motion.span

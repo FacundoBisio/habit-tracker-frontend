@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo } from "react";
 import { computeAchievements, type Achievement } from "@/lib/domain/achievements";
-import { fireConfetti } from "@/lib/confetti";
+import { fireParty } from "@/lib/confetti";
 import { toast } from "@/lib/notify";
 import { useEntriesState, useGoals, useHabitsState, useSettings, useToday } from "./hooks";
 
@@ -60,6 +60,6 @@ export function useAchievementUnlocks() {
     // Muchos de golpe (p. ej. tras importar datos): un solo aviso en vez de inundar la cola.
     if (fresh.length > 2) toast.success(`${fresh.length} logros desbloqueados. Mirá Ajustes`, { duration: 5000 });
     else for (const a of fresh) toast.success(`Logro desbloqueado: ${a.title}`, { duration: 5000 });
-    fireConfetti(window.innerWidth / 2, 110, 36);
+    fireParty();
   }, [list, ready]);
 }

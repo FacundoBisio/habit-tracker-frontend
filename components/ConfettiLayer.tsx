@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useBursts, type Burst, type Particle } from "@/lib/confetti";
+import { PARTY_MS, useBursts, type Burst, type Particle } from "@/lib/confetti";
 
 function Shape({ kind, color, size }: { kind: Particle["shape"]; color: string; size: number }) {
   if (kind === "circle") return <span className="block rounded-full" style={{ width: size, height: size, background: color }} />;
@@ -20,7 +20,28 @@ function Shape({ kind, color, size }: { kind: Particle["shape"]; color: string; 
   );
 }
 
+function PartyView({ burst }: { burst: Burst }) {
+  const h = typeof window === "undefined" ? 900 : window.innerHeight;
+  return (
+    <>
+      {burst.particles.map((p, i) => (
+        <motion.span
+          key={i}
+          className="absolute"
+          style={{ left: `${(p.x0 ?? 0.5) * 100}%`, top: 0 }}
+          initial={{ x: 0, y: -30, opacity: 1, rotate: 0 }}
+          animate={{ x: [0, p.sway ?? 0, -(p.sway ?? 0) / 2], y: [-30, h * 0.5, h + 40], opacity: [1, 1, 0], rotate: p.rot }}
+          transition={{ duration: PARTY_MS / 1000 - p.delay, delay: p.delay, ease: "linear", times: [0, 0.5, 1] }}
+        >
+          <Shape kind={p.shape} color={p.color} size={p.size} />
+        </motion.span>
+      ))}
+    </>
+  );
+}
+
 function BurstView({ burst }: { burst: Burst }) {
+  if (burst.full) return <PartyView burst={burst} />;
   return (
     <>
       {burst.particles.map((p, i) => (

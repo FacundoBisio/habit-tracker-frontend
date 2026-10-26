@@ -14,7 +14,7 @@ import { WeekStrip } from "@/components/WeekStrip";
 import { celebrate } from "@/components/celebrate";
 import { primaryBtn } from "@/components/Sheet";
 import { fmt, unitLabel } from "@/lib/cn";
-import { fireConfetti } from "@/lib/confetti";
+import { fireParty } from "@/lib/confetti";
 import { addDays } from "@/lib/domain/dates";
 import { activityFor, playActivity } from "@/lib/mascot";
 import { toast } from "@/lib/notify";
@@ -47,7 +47,7 @@ export default function TodayPage() {
   useEffect(() => {
     const complete = total > 0 && done === total;
     if (complete && !wasComplete.current) {
-      fireConfetti(window.innerWidth / 2, 150, 44);
+      fireParty();
       playActivity("celebrate");
     }
     wasComplete.current = complete;
