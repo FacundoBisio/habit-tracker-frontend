@@ -28,7 +28,7 @@ function Line({ children, delay, green = false, reduced }: { children: string; d
   );
 }
 
-/** El slime asoma desde el borde inferior (recortado por abajo) y sube con un resorte. */
+/** La bola asoma desde el borde inferior (recortado por abajo) y sube con un resorte. */
 function Peek({ activity, reduced }: { activity: Activity; reduced: boolean }) {
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-0 flex h-[130px] justify-center overflow-hidden">
@@ -112,7 +112,7 @@ function SlideTwo({ reduced }: { reduced: boolean }) {
 }
 
 /**
- * Entrada con pantallazos a pantalla completa: tipografía enorme, el slime asomando desde abajo y
+ * Entrada con pantallazos a pantalla completa: tipografía enorme, la bola asomando desde abajo y
  * un revelado circular entre pantallas. Siempre oscuro. Con "menos movimiento" solo hay fundidos.
  */
 export function Intro({ onDone }: { onDone: () => void }) {

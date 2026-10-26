@@ -54,7 +54,7 @@ test.beforeEach(async ({ page }) => {
   // El splash de arranque (1 vez por sesión) se desactiva salvo en los tests que lo verifican ("splash-test").
   await page.addInitScript(() => {
     if (!sessionStorage.getItem("splash-test")) sessionStorage.setItem("splash-shown", "1");
-    // Por defecto el personaje corre en 2D (más liviano y estable en las pruebas); los tests del 3D lo activan.
+    // Por defecto el personaje es la bola verde (más liviano y estable en las pruebas); los tests del 3D lo activan.
     if (!localStorage.getItem("mascot-mode")) localStorage.setItem("mascot-mode", "2d");
   });
   // Cada test arranca con una base limpia y la bienvenida ya completada.
@@ -436,14 +436,14 @@ test.describe("personaje 3D", () => {
     expect(withModel.equals(without)).toBe(false);
     expect(Math.abs(withModel.length - without.length)).toBeGreaterThan(1500);
 
-    // Tocar un hábito cambia la actividad (misma etiqueta accesible que el 2D)
+    // Tocar un hábito cambia la actividad (misma etiqueta accesible que la bola verde)
     await habitRow(page, "Pesas").click();
     await expect(page.getByRole("img", { name: "El personaje levanta pesas" })).toBeVisible();
     await page.getByRole("button", { name: /^Sumar .* a Agua$/ }).or(habitRow(page, "Agua")).first().click();
     await expect(page.getByRole("img", { name: "El personaje toma agua" })).toBeVisible();
   });
 
-  test("si el modelo no carga, se queda el personaje 2D y la app sigue andando", async ({ page }) => {
+  test("si el modelo no carga, se queda la bola verde y la app sigue andando", async ({ page }) => {
     await createHabit(page, { name: "Meditar", icon: "Mente" });
     await createHabit(page, { name: "Leer", icon: "Lectura" }); // queda pendiente: el día no se completa
     await page.route("**/models/mascot.glb", (route) => route.abort());

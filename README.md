@@ -12,7 +12,7 @@ Tracker de hábitos y objetivos para usar a diario desde el iPhone: **PWA** inst
 
 ## Estado
 - Implementado y testeado: dominio, PWA, API de Atajos, bot de Telegram, sincronización, logros, entrada con pantallazos, personaje animado, auditoría (`docs/AUDIT.md`).
-- **Personaje 3D:** esfera 3D (`public/models/mascot.glb`, generada a partir de `docs/MASCOT_3D_BRIEF.md`, licencia CC0/MIT en `docs/licenses/`). Se anima por código y se descarga solo cuando se usa (three.js con carga diferida). Si el dispositivo no tiene WebGL 2, el usuario pidió "menos movimiento", lo apaga en Ajustes o el modelo no carga, se usa el slime 2D.
+- **Personaje 3D:** esfera 3D (`public/models/mascot.glb`, generada a partir de `docs/MASCOT_3D_BRIEF.md`, licencia CC0/MIT en `docs/licenses/`). Se anima por código y se descarga solo cuando se usa (three.js con carga diferida). Si el dispositivo no tiene WebGL 2, el usuario pidió "menos movimiento", lo apaga en Ajustes o el modelo no carga, se muestra una bola verde simple.
 - **Pendiente: conectar credenciales** (Supabase, Telegram, LLM, Vercel) y probar de punta a punta. Seguí `docs/SETUP.md`.
 - Próximos pasos priorizados por impacto: `docs/ROADMAP.md`.
 
@@ -20,7 +20,7 @@ Tracker de hábitos y objetivos para usar a diario desde el iPhone: **PWA** inst
 - **Entrada con pantallazos:** dos slides oscuros con tipografía enorme y el personaje asomando, revelado circular entre ellos; después te pide el nombre. Quien ya tiene nombre ve un splash corto una vez por sesión.
 - **Registrar en 1–2 toques:** tocá un hábito; en los de cantidad usá − / + o tocá para corregir el total del día. Avisos en cola en un espacio fijo, con "Deshacer".
 - **Tira de fechas:** mirá y corregí cualquiera de los últimos 14 días.
-- **Slime 2D (respaldo):** cuerpo de gelatina con física (rebota, se aplasta y tiembla), cara que sigue tu dedo, brazos que salen del cuerpo. Respira, parpadea y da un saltito de vez en cuando; al tocar un hábito hace su actividad durante 10 s: curl con mancuerna con un solo brazo musculoso, tomar agua, leer, meditar, correr, dormir, bailar. Movimientos sutiles.
+- **Bola verde (respaldo):** mientras carga el 3D, o si el dispositivo no lo soporta, se ve una bola verde con cara que respira suave. Con el 3D activo, el personaje hace su actividad durante 10 s al tocar un hábito: curl con mancuerna con un solo brazo musculoso, tomar agua, leer, meditar, correr, dormir, bailar. Movimientos sutiles.
 - **Objetivos** (cantidad, suma, frecuencia semanal, racha) con ritmo esperado vs real.
 - **Rachas** con llama que pasa a naranja desde 10 y a rojo desde 30.
 - **Logros** en Ajustes (rachas, constancia semanal, registros, días perfectos, objetivos) con insignias 3D y aviso al desbloquear.
@@ -42,9 +42,8 @@ Los E2E usan el Chrome instalado (no descargan navegadores) y construyen en `.ne
 ## Estructura
 ```
 app/              rutas UI y app/api/{quick,me,sync,telegram,cron}
-components/       UI (popups, filas de hábito, slime, intro y splash, logros, barras superior e inferior)
+components/       UI (popups, filas de hábito, personaje, intro y splash, logros, barras superior e inferior)
 lib/domain/       lógica pura (fechas, rachas, objetivos, logros, matching) — testeada
-lib/slime-rig.ts  física de gelatina, cinemática inversa y poses del slime 2D — testeada
 lib/mascot-3d*.ts rig procedural del modelo 3D, contrato del GLB y preferencia 3D/2D — testeados
 lib/store/        IndexedDB (Dexie), hooks con caché y outbox de sincronización
 lib/sync/         plan de push/pull (puro) + motor del cliente

@@ -17,7 +17,7 @@ const subscribeMotion = (cb: () => void) => {
 const reducedNow = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /**
- * Splash de arranque, una vez por sesión del navegador: el slime aparece de un salto, el nombre
+ * Splash de arranque, una vez por sesión del navegador: la bola aparece de un salto, el nombre
  * entra letra por letra y un revelado circular deja ver la app. Se renderiza solo en el cliente
  * (no está en el HTML del servidor, así no afecta al LCP) y se omite con "menos movimiento".
  */
