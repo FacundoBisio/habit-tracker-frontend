@@ -123,6 +123,45 @@ export function createDrizzleRepo(): Repo {
         .where(and(eq(t.goals.id, id), eq(t.goals.userId, userId)));
     },
 
+    async upsertHabit(userId, habit) {
+      const values = { ...habit, userId, unit: habit.unit ?? null };
+      const set: Partial<typeof values> = { ...values };
+      delete set.id;
+      delete set.userId;
+      await db
+        .insert(t.habits)
+        .values(values)
+        .onConflictDoUpdate({ target: t.habits.id, set: { ...set, updatedAt: new Date() }, setWhere: eq(t.habits.userId, userId) });
+    },
+
+    async deleteHabits(userId, ids) {
+      if (!ids.length) return;
+      await db.delete(t.habits).where(and(eq(t.habits.userId, userId), inArray(t.habits.id, ids)));
+    },
+
+    async upsertGoal(userId, goal) {
+      const { links, ...g } = goal;
+      const values = { ...g, userId, unit: g.unit ?? null };
+      const set: Partial<typeof values> = { ...values };
+      delete set.id;
+      delete set.userId;
+      const [row] = await db
+        .insert(t.goals)
+        .values(values)
+        .onConflictDoUpdate({ target: t.goals.id, set: { ...set, updatedAt: new Date() }, setWhere: eq(t.goals.userId, userId) })
+        .returning({ id: t.goals.id });
+      if (!row) return; // el id pertenece a otro usuario
+      await db.delete(t.goalLinks).where(and(eq(t.goalLinks.goalId, goal.id), eq(t.goalLinks.userId, userId)));
+      if (links.length) {
+        await db.insert(t.goalLinks).values(links.map((l) => ({ goalId: goal.id, habitId: l.habitId, weight: l.weight, userId })));
+      }
+    },
+
+    async deleteGoals(userId, ids) {
+      if (!ids.length) return;
+      await db.delete(t.goals).where(and(eq(t.goals.userId, userId), inArray(t.goals.id, ids)));
+    },
+
     async getSettings(userId) {
       const [row] = await db.select().from(t.userSettings).where(eq(t.userSettings.userId, userId));
       return row ? toSettings(row) : { ...DEFAULT_SERVER_SETTINGS };

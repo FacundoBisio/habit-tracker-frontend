@@ -58,6 +58,29 @@ export function createMemoryRepo(seed?: { goals?: (ServerGoal & { userId: string
       const g = goals.find((x) => x.id === gid && x.userId === userId);
       if (g) g.status = status;
     },
+    async upsertHabit(userId, habit) {
+      const i = habits.findIndex((h) => h.id === habit.id);
+      if (i === -1) habits.push({ ...habit, userId });
+      else if (habits[i].userId === userId) habits[i] = { ...habit, userId };
+    },
+    async deleteHabits(userId, ids) {
+      for (let i = habits.length - 1; i >= 0; i--) {
+        if (habits[i].userId === userId && ids.includes(habits[i].id)) habits.splice(i, 1);
+      }
+      for (let i = entries.length - 1; i >= 0; i--) {
+        if (entries[i].userId === userId && ids.includes(entries[i].habitId)) entries.splice(i, 1);
+      }
+    },
+    async upsertGoal(userId, goal) {
+      const i = goals.findIndex((g) => g.id === goal.id);
+      if (i === -1) goals.push({ ...goal, userId });
+      else if (goals[i].userId === userId) goals[i] = { ...goal, userId };
+    },
+    async deleteGoals(userId, ids) {
+      for (let i = goals.length - 1; i >= 0; i--) {
+        if (goals[i].userId === userId && ids.includes(goals[i].id)) goals.splice(i, 1);
+      }
+    },
     async getSettings(userId) {
       return settings.get(userId) ?? { ...DEFAULT_SERVER_SETTINGS };
     },

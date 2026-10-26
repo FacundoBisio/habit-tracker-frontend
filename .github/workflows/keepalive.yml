@@ -1,0 +1,21 @@
+name: Keepalive
+# Evita que Supabase Free pause el proyecto por inactividad: una vez por semana consulta la base
+# a través de la app. Requiere los secretos APP_URL y CRON_SECRET.
+on:
+  schedule:
+    - cron: "0 12 * * 1"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping a la app (toca la base)
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          test -n "$APP_URL" || { echo "Falta el secreto APP_URL"; exit 1; }
+          curl --fail --silent --show-error --max-time 30 \
+            -X POST "$APP_URL/api/cron/keepalive" \
+            -H "Authorization: Bearer $CRON_SECRET"

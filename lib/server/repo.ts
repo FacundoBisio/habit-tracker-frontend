@@ -82,6 +82,12 @@ export interface Repo {
   listGoals(userId: string): Promise<ServerGoal[]>;
   setGoalStatus(userId: string, id: string, status: ServerGoal["status"]): Promise<void>;
 
+  /** Upsert por id acotado al usuario: un id ajeno nunca se pisa. */
+  upsertHabit(userId: string, habit: ServerHabit): Promise<void>;
+  deleteHabits(userId: string, ids: string[]): Promise<void>;
+  upsertGoal(userId: string, goal: ServerGoal): Promise<void>;
+  deleteGoals(userId: string, ids: string[]): Promise<void>;
+
   getSettings(userId: string): Promise<ServerSettings>;
   updateSettings(userId: string, patch: Partial<ServerSettings>): Promise<void>;
 

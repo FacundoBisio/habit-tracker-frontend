@@ -4,10 +4,12 @@ import { Cloud, CloudOff } from "lucide-react";
 import { useEffect } from "react";
 import { Toaster } from "sonner";
 import { useOnline } from "@/lib/store/hooks";
+import { useSync } from "@/lib/sync/use-sync";
 import { BottomNav } from "./BottomNav";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const online = useOnline();
+  const { status, pending } = useSync();
 
   useEffect(() => {
     if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) {
@@ -24,7 +26,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       )}
       <main className="flex-1">{children}</main>
       <p className="mt-8 flex items-center justify-center gap-1.5 text-[11px] text-muted">
-        <Cloud className="size-3.5" /> Guardado en este dispositivo
+        <Cloud className="size-3.5" />
+        {status === "off" && "Guardado en este dispositivo"}
+        {status === "syncing" && "Sincronizando…"}
+        {status === "synced" && "Sincronizado"}
+        {status === "pending" && `${pending} cambio${pending === 1 ? "" : "s"} por sincronizar`}
+        {status === "error" && "No se pudo sincronizar · reintento automático"}
       </p>
       <BottomNav />
       <Toaster
