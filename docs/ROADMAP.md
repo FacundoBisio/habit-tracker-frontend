@@ -30,7 +30,7 @@ Todo lo demás depende de usarlo de verdad unos días.
 | **CI con E2E + presupuesto de Lighthouse** | Evita regresiones como la de los popups | S |
 
 ## 4. Impacto bajo o con costo desproporcionado
-- **Modelo 3D real (three.js):** suma ~150 KB+ de JavaScript, empeora el rendimiento en móviles y gasta batería. El personaje ya tiene volumen (degradados, inclinación 3D siguiendo el dedo). Si se quiere un salto de calidad, conviene **Rive/Lottie** (animación vectorial interactiva, liviana) antes que 3D.
+- **Personaje 3D real (esfera):** el pedido está confirmado. Suma ~150 KB+ de JavaScript y consume más batería, así que se integra con **carga diferida** y con el slime 2D como respaldo (sin WebGL, con "menos movimiento" o si el modelo no carga). El brief para generar el modelo está en `docs/MASCOT_3D_BRIEF.md`; falta recibir el `.zip`. Alternativa liviana si el 3D no convence: Rive/Lottie.
 - **Funciones sociales / amigos:** requiere moderación, privacidad y más infraestructura; recién tiene sentido con más de un usuario real.
 - **App nativa / widget WidgetKit:** exige Apple Developer (pago). Los Atajos + el widget de Atajos ya cubren el caso.
 

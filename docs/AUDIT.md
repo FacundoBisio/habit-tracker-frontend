@@ -5,10 +5,10 @@ Alcance: todo el repo (dominio, PWA, API de Atajos, bot, sincronización, seguri
 ## Resultado en números
 | Chequeo | Resultado |
 |---|---|
-| Pruebas unitarias (Vitest) | 115 pasan |
-| Pruebas E2E (Playwright, iPhone 14, Chrome) | 17 pasan |
+| Pruebas unitarias (Vitest) | 135 pasan |
+| Pruebas E2E (Playwright, iPhone 14, Chrome) | 20 pasan |
 | `eslint` / `tsc --noEmit` / `next build` | limpios |
-| Lighthouse móvil (simulación 4× CPU) | Rendimiento 80 · Accesibilidad 100 · Buenas prácticas 100 · SEO 100 |
+| Lighthouse móvil (simulación 4× CPU, mediana de 3 corridas) | Rendimiento 80 · Accesibilidad 100 · Buenas prácticas 100 · SEO 100 · CLS 0 · TBT ~340 ms |
 
 ## Seguridad
 
@@ -48,6 +48,7 @@ Alcance: todo el repo (dominio, PWA, API de Atajos, bot, sincronización, seguri
 - **Entradas inmutables:** corregir una cantidad borra y recrea registros (así la sincronización solo ve altas y bajas). Probado por E2E.
 - **Recordatorios:** se envían solo si el cron cae justo en el minuto configurado. Si se pierde ese minuto, ese día no llega.
 - **Nombre del usuario:** vive solo en el dispositivo; en un dispositivo nuevo la bienvenida vuelve a pedirlo.
+- **Bug encontrado por la auditoría de Lighthouse:** el reloj del personaje podía retroceder (el tiempo de `requestAnimationFrame` llega a veces antes que `performance.now()`), el parpadeo daba un párpado de altura negativa y Chrome registraba `<rect> height: negative value`. Corregido en tres capas (dt nunca negativo, `blink` con guarda, rangos acotados al dibujar) y con prueba de regresión.
 - **Bug encontrado y corregido durante el desarrollo:** `filter`/`transform` persistentes en la transición de página hacían que los popups se posicionaran respecto a la columna y no a la pantalla. Ahora la transición solo anima opacidad/desplazamiento y los popups van en un portal sobre `<body>`.
 
 ## Accesibilidad
@@ -63,5 +64,6 @@ Alcance: todo el repo (dominio, PWA, API de Atajos, bot, sincronización, seguri
 - **Huecos:** (1) nada corre contra Postgres real; (2) el motor de sync del cliente no tiene E2E con servidor; (3) sin pruebas visuales de regresión; (4) no probado en un iPhone real ni con Supabase/Telegram/LLM reales; (5) el CI (`ci.yml`) no ejecuta todavía los E2E.
 
 ## Proceso
+- Las animaciones del personaje se verificaron en Chrome real (entrada, slides, pantalla de nombre, curl, tomar agua, correr, vuelta al reposo a los 10 s, avisos en cola) y con capturas por actividad en claro y oscuro.
 - Historial local reescrito para quitar atribuciones de Claude; **falta `git push --force-with-lease origin master`** (lo bloqueó el modo automático; lo corrés vos).
 - `npm audit`: una advertencia moderada de `esbuild` vía `drizzle-kit` (solo desarrollo).

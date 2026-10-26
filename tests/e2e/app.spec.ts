@@ -21,6 +21,8 @@ const dayProgress = (page: Page) => page.getByRole("progressbar");
 const NAME = "Facu";
 const greeting = (page: Page) => page.getByRole("heading", { level: 1 });
 
+const nameInput = (page: Page) => page.getByLabel("¿Cómo te llamo?");
+
 async function freshDb(page: Page) {
   await page.goto("/");
   await page.evaluate(async () => {
@@ -28,17 +30,31 @@ async function freshDb(page: Page) {
       const req = indexedDB.deleteDatabase("habit-tracker");
       req.onsuccess = req.onerror = req.onblocked = () => resolve();
     });
+    sessionStorage.removeItem("intro-done"); // vuelve a aparecer la presentación
   });
   await page.reload();
 }
 
+/** Pasa la presentación con pantallazos (si aparece) y deja la pantalla de nombre a la vista. */
+async function skipIntro(page: Page) {
+  const skip = page.getByRole("button", { name: "Saltar" });
+  await skip.or(nameInput(page)).first().waitFor();
+  if (await skip.isVisible()) await skip.click();
+  await expect(nameInput(page)).toBeVisible();
+}
+
 async function completeWelcome(page: Page, name = NAME) {
-  await page.getByLabel("¿Cómo te llamo?").fill(name);
+  await skipIntro(page);
+  await nameInput(page).fill(name);
   await page.getByRole("button", { name: "Empezar" }).click();
   await expect(greeting(page)).toHaveText(`Hola, ${name}`);
 }
 
 test.beforeEach(async ({ page }) => {
+  // El splash de arranque (1 vez por sesión) se desactiva salvo en los tests que lo verifican ("splash-test").
+  await page.addInitScript(() => {
+    if (!sessionStorage.getItem("splash-test")) sessionStorage.setItem("splash-shown", "1");
+  });
   // Cada test arranca con una base limpia y la bienvenida ya completada.
   await freshDb(page);
   await completeWelcome(page);
@@ -205,6 +221,7 @@ test("tocar un hábito muestra su actividad (tomar agua) sin completar el día",
 
 test("bienvenida: el personaje se presenta, pide el nombre y pasa a la app", async ({ page }) => {
   await freshDb(page);
+  await skipIntro(page);
   await expect(page.getByText("Hola, soy SuperHábitos")).toBeVisible();
   await expect(page.getByText(/guiarte/)).toBeVisible();
   const start = page.getByRole("button", { name: "Empezar" });
@@ -257,6 +274,65 @@ test("logros en Ajustes: se desbloquean al registrar y avisan", async ({ page })
   const first = page.getByRole("group", { name: /^Primer registro\./ });
   await expect(first).toContainText("Desbloqueado");
   await expect(page.getByRole("group", { name: /^Arrancando\./ })).not.toContainText("Desbloqueado");
+});
+
+test("intro con pantallazos: título, Siguiente al segundo slide y Empezar lleva a pedir el nombre", async ({ page }) => {
+  await freshDb(page);
+  await expect(page.getByRole("heading", { name: /Hacé hábitos mejores con SuperHábitos/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Saltar" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Siguiente" }).click();
+  await expect(page.getByRole("heading", { name: "Un toque. Una racha. Un logro." })).toBeVisible();
+  await expect(page.getByText("Tu constancia se ve crecer")).toBeVisible();
+
+  await page.getByRole("button", { name: "Empezar" }).click();
+  await expect(nameInput(page)).toBeVisible();
+  await expect(page.getByText("Hola, soy SuperHábitos")).toBeVisible();
+
+  // Con Saltar también se llega al nombre (y un reload en la misma sesión no repite la presentación)
+  await freshDb(page);
+  await page.getByRole("button", { name: "Saltar" }).click();
+  await expect(nameInput(page)).toBeVisible();
+  await page.reload();
+  await expect(nameInput(page)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Saltar" })).toHaveCount(0);
+});
+
+test("splash de arranque: aparece una vez por sesión para quien ya tiene nombre, se va solo y deja la app usable", async ({ page }) => {
+  await page.evaluate(() => {
+    sessionStorage.setItem("splash-test", "1");
+    sessionStorage.removeItem("splash-shown");
+  });
+  const t0 = Date.now();
+  await page.reload();
+  const splash = page.getByTestId("launch-splash");
+  await expect(splash).toBeVisible();
+  await expect(splash).toBeHidden({ timeout: 3_000 });
+  expect(Date.now() - t0).toBeLessThan(4_000);
+  await expect(greeting(page)).toHaveText(`Hola, ${NAME}`);
+  await page.getByRole("link", { name: "Ajustes" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Ajustes" })).toBeVisible();
+
+  // En la misma sesión no vuelve a aparecer (el reload conserva la ruta: volvemos a Hoy primero)
+  await page.getByRole("link", { name: "Hoy" }).click();
+  // Esperar a que la navegación termine: recargar en medio de ella dejaría la ruta anterior
+  await page.waitForURL((url) => url.pathname === "/");
+  await expect(greeting(page)).toHaveText(`Hola, ${NAME}`);
+  await page.reload();
+  await expect(greeting(page)).toHaveText(`Hola, ${NAME}`);
+  await expect(splash).toHaveCount(0);
+});
+
+test("con 'menos movimiento' el splash de arranque no aparece ni bloquea", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.evaluate(() => {
+    sessionStorage.setItem("splash-test", "1");
+    sessionStorage.removeItem("splash-shown");
+  });
+  await page.reload();
+  await expect(page.getByTestId("launch-splash")).toHaveCount(0);
+  await page.getByRole("link", { name: "Ajustes" }).click(); // usable de inmediato
+  await expect(page.getByRole("heading", { level: 1, name: "Ajustes" })).toBeVisible();
 });
 
 test("el registro persiste al recargar (IndexedDB)", async ({ page }) => {

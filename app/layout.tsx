@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Instrument_Sans } from "next/font/google";
 import "./globals.css";
 
-const bricolage = Bricolage_Grotesque({ subsets: ["latin"], variable: "--font-bricolage", display: "swap" });
+const bricolage = Bricolage_Grotesque({ subsets: ["latin"], variable: "--font-bricolage", display: "optional" });
 const instrument = Instrument_Sans({ subsets: ["latin"], variable: "--font-instrument", display: "swap" });
 
 export const metadata: Metadata = {
@@ -10,7 +10,13 @@ export const metadata: Metadata = {
   description: "Registrá tus hábitos y objetivos en 1–2 toques.",
   applicationName: "SuperHábitos",
   manifest: "/manifest.webmanifest",
-  icons: { icon: "/icon-192.png", apple: "/apple-icon" },
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: "/apple-icon",
+  },
   appleWebApp: { capable: true, title: "SuperHábitos", statusBarStyle: "default" },
   formatDetection: { telephone: false },
 };

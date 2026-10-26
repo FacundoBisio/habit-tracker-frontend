@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { CloudOff } from "lucide-react";
 import { useEffect } from "react";
+import { useSessionFlag } from "@/lib/session-flag";
 import { useAchievementUnlocks } from "@/lib/store/achievements";
 import { useDaySummary } from "@/lib/store/day";
 import { useOnline, useSettingsState } from "@/lib/store/hooks";
@@ -10,8 +11,13 @@ import { useSync } from "@/lib/sync/use-sync";
 import { Aura } from "./Aura";
 import { BottomNav } from "./BottomNav";
 import { ConfettiLayer } from "./ConfettiLayer";
+import dynamic from "next/dynamic";
 import { TopBar } from "./TopBar";
 import { Welcome } from "./Welcome";
+
+// Cada uno se descarga solo cuando hace falta (el intro es para quien no tiene nombre; el splash, para quien sí).
+const Intro = dynamic(() => import("./Intro").then((m) => m.Intro), { ssr: false });
+const LaunchSplash = dynamic(() => import("./LaunchSplash").then((m) => m.LaunchSplash), { ssr: false });
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const online = useOnline();
@@ -20,6 +26,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { settings, ready } = useSettingsState();
   // Hasta que el usuario no ponga su nombre se muestra la bienvenida (la app se ve mientras carga).
   const welcome = ready && !settings.name;
+  // La presentación con pantallazos va antes de pedir el nombre; un reload en la misma sesión salta directo al nombre.
+  const [introDone, markIntroDone] = useSessionFlag("intro-done");
   useAchievementUnlocks();
 
   useEffect(() => {
@@ -33,7 +41,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <Aura pct={welcome ? 0 : pct} />
       <AnimatePresence mode="wait" initial={false}>
         {welcome ? (
-          <Welcome key="welcome" />
+          introDone ? <Welcome key="welcome" /> : <Intro key="intro" onDone={markIntroDone} />
         ) : (
           <motion.div
             key="app"
@@ -55,6 +63,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         )}
       </AnimatePresence>
       <ConfettiLayer />
+      <LaunchSplash />
     </>
   );
 }
