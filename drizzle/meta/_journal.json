@@ -8,6 +8,13 @@
       "when": 1793021660156,
       "tag": "0000_fantastic_steel_serpent",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793023454030,
+      "tag": "0001_talented_killer_shrike",
+      "breakpoints": true
     }
   ]
 }

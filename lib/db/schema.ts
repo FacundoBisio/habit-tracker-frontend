@@ -129,6 +129,15 @@ export const linkCodes = pgTable("link_codes", {
   ...timestamps,
 });
 
+/** Estado pendiente de confirmación del bot (los callbacks de Telegram llegan a otra invocación serverless). */
+export const botPending = pgTable("bot_pending", {
+  id: id(),
+  userId: userId(),
+  chatId: text("chat_id").notNull(),
+  payload: jsonb("payload").$type<unknown>().notNull(),
+  ...timestamps,
+});
+
 export const RLS_TABLES = [
   "habits",
   "entries",
@@ -137,4 +146,5 @@ export const RLS_TABLES = [
   "user_settings",
   "api_tokens",
   "link_codes",
+  "bot_pending",
 ] as const;

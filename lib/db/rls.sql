@@ -4,7 +4,7 @@
 do $$
 declare t text;
 begin
-  foreach t in array array['habits','entries','goals','goal_links','user_settings','api_tokens','link_codes']
+  foreach t in array array['habits','entries','goals','goal_links','user_settings','api_tokens','link_codes','bot_pending']
   loop
     execute format('alter table %I enable row level security', t);
     execute format('drop policy if exists "owner_all" on %I', t);

@@ -4,6 +4,7 @@ import { ChevronRight, Download, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
+import { AccountSection } from "@/components/AccountSection";
 import { HabitForm } from "@/components/HabitForm";
 import { ghostBtn, labelCls } from "@/components/Sheet";
 import { cn } from "@/lib/cn";
@@ -136,9 +137,7 @@ export default function SettingsPage() {
         </Group>
 
         <Group title="Cuenta, Atajos y Telegram">
-          <p className="text-sm text-muted">
-            Tokens de API, vinculación con Telegram y recordatorios se activan al conectar la cuenta (Fases 3 y 4). Mientras tanto todo se guarda en este dispositivo.
-          </p>
+          <AccountSection />
         </Group>
       </div>
       <HabitForm open={!!editing} habit={editing} onClose={() => setEditing(undefined)} />

@@ -1,0 +1,140 @@
+import { beforeEach, describe, expect, it } from "vitest";
+import { rulesParser } from "@/lib/nl";
+import { createMemoryRepo } from "./memory-repo";
+import { createQuickHandlers } from "./quick-handlers";
+import type { ServerGoal } from "./repo";
+import { createRateLimiter, generateToken } from "./security";
+
+const USER = "user-1";
+// 2026-03-11 02:30 UTC = martes 10 de marzo 23:30 en Argentina
+const NOW = new Date("2026-03-11T02:30:00Z");
+
+async function setup(limit = 100) {
+  const goals: (ServerGoal & { userId: string })[] = [];
+  const repo = createMemoryRepo({ goals });
+  const water = await repo.createHabit(USER, { name: "Agua", emoji: "💧", color: "teal", kind: "quantity", unit: "vasos", defaultAmount: 1, schedule: { type: "daily" }, aliases: ["vaso"] });
+  const gym = await repo.createHabit(USER, { name: "Gym", emoji: "🏋️", color: "blue", kind: "boolean", defaultAmount: 1, schedule: { type: "weekly", times: 3 }, aliases: ["entrené"] });
+  goals.push({
+    id: "g1", userId: USER, title: "Agua marzo", kind: "sum", targetValue: 4, periodStart: "2026-03-01", periodEnd: "2026-03-31", status: "active",
+    links: [{ habitId: water.id, weight: 1 }],
+  });
+  const { token, hash } = generateToken();
+  await repo.createToken(USER, "iPhone", hash);
+  const handlers = createQuickHandlers({ repo, parser: rulesParser, limiter: createRateLimiter(limit, 60_000), now: () => NOW });
+  return { repo, handlers, token, water, gym };
+}
+
+const req = (path: string, token: string | null, body?: unknown, extra = "") =>
+  new Request(`http://localhost/api/quick/${path}${extra}`, {
+    method: body === undefined ? "GET" : "POST",
+    headers: { ...(token ? { authorization: `Bearer ${token}` } : {}), "content-type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+describe("/api/quick auth y rate limit", () => {
+  let ctx: Awaited<ReturnType<typeof setup>>;
+  beforeEach(async () => { ctx = await setup(); });
+
+  it("sin token o con token inválido → 401", async () => {
+    expect((await ctx.handlers.habits(req("habits", null))).status).toBe(401);
+    expect((await ctx.handlers.habits(req("habits", "ht_falso"))).status).toBe(401);
+  });
+
+  it("token revocado → 401", async () => {
+    const [t] = await ctx.repo.listTokens(USER);
+    await ctx.repo.revokeToken(USER, t.id);
+    expect((await ctx.handlers.habits(req("habits", ctx.token))).status).toBe(401);
+  });
+
+  it("rate limit por token → 429 con retry-after", async () => {
+    const limited = await setup(2);
+    await limited.handlers.habits(req("habits", limited.token));
+    await limited.handlers.habits(req("habits", limited.token));
+    const res = await limited.handlers.habits(req("habits", limited.token));
+    expect(res.status).toBe(429);
+    expect(res.headers.get("retry-after")).toBeTruthy();
+  });
+
+  it("lista hábitos en JSON y en texto plano", async () => {
+    const json = await (await ctx.handlers.habits(req("habits", ctx.token))).json();
+    expect(json.habits.map((h: { name: string }) => h.name)).toEqual(["Agua", "Gym"]);
+    const text = await (await ctx.handlers.habits(req("habits", ctx.token, undefined, "?format=text"))).text();
+    expect(text).toBe("Agua\nGym");
+  });
+});
+
+describe("POST /api/quick/log", () => {
+  it("registra por alias y usa la fecha local Argentina (23:30 no salta de día)", async () => {
+    const { handlers, token, repo } = await setup();
+    const res = await handlers.log(req("log", token, { habit: "vaso", amount: 2 }));
+    const json = await res.json();
+    expect(res.status).toBe(200);
+    expect(json.text).toContain("Agua +2 vasos");
+    expect(json.text).toContain("Agua marzo 50%");
+    const [e] = await repo.listEntries(USER);
+    expect(e.localDate).toBe("2026-03-10");
+    expect(e.source).toBe("shortcut");
+  });
+
+  it("idempotente por client_id: reintento no duplica", async () => {
+    const { handlers, token, repo } = await setup();
+    const client_id = "11111111-1111-4111-8111-111111111111";
+    await handlers.log(req("log", token, { habit: "agua", client_id }));
+    const second = await (await handlers.log(req("log", token, { habit: "agua", client_id }))).json();
+    expect(second.duplicate).toBe(true);
+    expect(await repo.listEntries(USER)).toHaveLength(1);
+  });
+
+  it("completa el objetivo y lo informa", async () => {
+    const { handlers, token } = await setup();
+    const json = await (await handlers.log(req("log", token, { habit: "agua", amount: 4 }))).json();
+    expect(json.completed_goals).toEqual(["Agua marzo"]);
+    expect(json.text).toContain("🎉 Objetivo completado");
+  });
+
+  it("weekly muestra x/y de la semana", async () => {
+    const { handlers, token } = await setup();
+    const json = await (await handlers.log(req("log", token, { habit: "gym" }))).json();
+    expect(json.text).toContain("semana 1/3");
+  });
+
+  it("errores: hábito inexistente 404, fecha futura 400, body inválido 400", async () => {
+    const { handlers, token } = await setup();
+    expect((await handlers.log(req("log", token, { habit: "yoga" }))).status).toBe(404);
+    expect((await handlers.log(req("log", token, { habit: "agua", date: "2026-04-01" }))).status).toBe(400);
+    expect((await handlers.log(req("log", token, { amount: 1 }))).status).toBe(400);
+  });
+
+  it("devuelve texto plano si se pide", async () => {
+    const { handlers, token } = await setup();
+    const res = await handlers.log(req("log", token, { habit: "gym" }, "?format=text"));
+    expect(res.headers.get("content-type")).toContain("text/plain");
+    expect(await res.text()).toContain("Gym");
+  });
+});
+
+describe("POST /api/quick/ingest", () => {
+  it("confirm=false solo dice qué entendió y no escribe", async () => {
+    const { handlers, token, repo } = await setup();
+    const json = await (await handlers.ingest(req("ingest", token, { text: "agua 3, gym", confirm: false }))).json();
+    expect(json.registered).toBe(false);
+    expect(json.text).toContain("Entendí:");
+    expect(json.understood).toHaveLength(2);
+    expect(await repo.listEntries(USER)).toHaveLength(0);
+  });
+
+  it("confirm=true registra y es idempotente con el mismo client_id", async () => {
+    const { handlers, token, repo } = await setup();
+    const body = { text: "agua 3, gym", confirm: true, client_id: "22222222-2222-4222-8222-222222222222" };
+    await handlers.ingest(req("ingest", token, body));
+    await handlers.ingest(req("ingest", token, body));
+    expect(await repo.listEntries(USER)).toHaveLength(2);
+  });
+
+  it("informa hábitos que no matchean", async () => {
+    const { handlers, token } = await setup();
+    const json = await (await handlers.ingest(req("ingest", token, { text: "yoga 15", confirm: false }))).json();
+    expect(json.unmatched[0].term).toBe("yoga");
+    expect(json.text).toContain("No pude registrar nada");
+  });
+});
