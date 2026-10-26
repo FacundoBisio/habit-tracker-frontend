@@ -1,23 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/notify";
 import type { Schedule } from "@/lib/domain/types";
 import { cn } from "@/lib/cn";
+import { DEFAULT_ICON, HABIT_ICONS, iconKey } from "@/lib/habit-icons";
 import { addHabit, deleteHabit, updateHabit } from "@/lib/store/actions";
 import type { Habit } from "@/lib/store/db";
+import { HabitIcon } from "./HabitIcon";
 import { Sheet, ghostBtn, inputCls, labelCls, primaryBtn } from "./Sheet";
-
-export const HABIT_COLORS: Record<string, string> = {
-  teal: "#0d9488",
-  blue: "#3b82f6",
-  violet: "#8b5cf6",
-  pink: "#ec4899",
-  red: "#ef4444",
-  orange: "#f97316",
-  amber: "#d4a017",
-  green: "#22a559",
-};
 
 const DAYS = ["D", "L", "M", "M", "J", "V", "S"];
 
@@ -32,8 +23,7 @@ export function HabitForm({ open, onClose, habit }: { open: boolean; onClose: ()
 
 function Form({ habit, onClose }: { habit?: Habit; onClose: () => void }) {
   const [name, setName] = useState(habit?.name ?? "");
-  const [emoji, setEmoji] = useState(habit?.emoji ?? "✅");
-  const [color, setColor] = useState(habit?.color ?? "teal");
+  const [icon, setIcon] = useState<string>(habit ? iconKey(habit.emoji) : DEFAULT_ICON);
   const [kind, setKind] = useState<Habit["kind"]>(habit?.kind ?? "boolean");
   const [unit, setUnit] = useState(habit?.unit ?? "");
   const [amount, setAmount] = useState(String(habit?.defaultAmount ?? 1));
@@ -49,8 +39,8 @@ function Form({ habit, onClose }: { habit?: Habit; onClose: () => void }) {
   async function save() {
     const base = {
       name: name.trim(),
-      emoji: emoji.trim() || "✅",
-      color,
+      emoji: icon,
+      color: habit?.color ?? "green",
       kind,
       unit: kind === "quantity" ? unit.trim() || undefined : undefined,
       defaultAmount: kind === "quantity" ? Math.max(Number(amount.replace(",", ".")) || 1, 0.01) : 1,
@@ -72,29 +62,27 @@ function Form({ habit, onClose }: { habit?: Habit; onClose: () => void }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-3">
-        <div className="w-20">
-          <label className={labelCls} htmlFor="h-emoji">Emoji</label>
-          <input id="h-emoji" className={cn(inputCls, "text-center text-xl")} value={emoji} maxLength={4} onChange={(e) => setEmoji(e.target.value)} />
-        </div>
-        <div className="flex-1">
-          <label className={labelCls} htmlFor="h-name">Nombre</label>
-          <input id="h-name" className={inputCls} value={name} placeholder="Ej: Agua, Gym, Leer" onChange={(e) => setName(e.target.value)} autoFocus={!habit} />
-        </div>
+      <div>
+        <label className={labelCls} htmlFor="h-name">Nombre</label>
+        <input id="h-name" className={inputCls} value={name} placeholder="Ej: Agua, Gym, Leer" onChange={(e) => setName(e.target.value)} autoFocus={!habit} />
       </div>
 
       <div>
-        <span className={labelCls}>Color</span>
-        <div className="flex flex-wrap gap-2">
-          {Object.entries(HABIT_COLORS).map(([k, hex]) => (
+        <span className={labelCls}>Ícono</span>
+        <div role="radiogroup" aria-label="Ícono" className="grid grid-cols-6 gap-2">
+          {HABIT_ICONS.map((i) => (
             <button
-              key={k}
-              aria-label={k}
-              aria-pressed={color === k}
-              onClick={() => setColor(k)}
-              className={cn("size-11 rounded-full border-2 transition", color === k ? "border-fg" : "border-transparent")}
-              style={{ background: hex }}
-            />
+              key={i.key}
+              role="radio"
+              aria-checked={icon === i.key}
+              aria-label={i.label}
+              title={i.label}
+              onClick={() => setIcon(i.key)}
+              data-on={icon === i.key}
+              className="icon-option grid aspect-square min-h-11 place-items-center rounded-2xl active:scale-90"
+            >
+              <HabitIcon value={i.key} className="size-5" />
+            </button>
           ))}
         </div>
       </div>

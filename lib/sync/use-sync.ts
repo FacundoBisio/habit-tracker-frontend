@@ -3,7 +3,7 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { db } from "@/lib/store/db";
-import { getSupabase } from "@/lib/supabase/browser";
+import { loadSupabase } from "@/lib/supabase/browser";
 import { syncOnce, type SyncStatus } from "./engine";
 
 const POLL_MS = 60_000;
@@ -17,7 +17,7 @@ export function useSync(): { status: SyncStatus; pending: number } {
   const again = useRef(false);
 
   const run = useCallback(async () => {
-    if (!getSupabase()) return;
+    if (!(await loadSupabase())) return;
     if (running.current) {
       again.current = true;
       return;
@@ -37,21 +37,31 @@ export function useSync(): { status: SyncStatus; pending: number } {
   }, []);
 
   useEffect(() => {
-    const supabase = getSupabase();
-    if (!supabase) return;
-    const kick = () => {
-      if (document.visibilityState === "visible" && navigator.onLine) void run();
-    };
-    kick();
-    const { data } = supabase.auth.onAuthStateChange(() => kick());
-    const timer = setInterval(kick, POLL_MS);
-    window.addEventListener("online", kick);
-    document.addEventListener("visibilitychange", kick);
+    let cancelled = false;
+    let cleanup: (() => void) | undefined;
+
+    // El cliente de Supabase se carga aparte; sin cuenta configurada no se descarga nunca.
+    loadSupabase().then((supabase) => {
+      if (!supabase || cancelled) return;
+      const kick = () => {
+        if (document.visibilityState === "visible" && navigator.onLine) void run();
+      };
+      kick();
+      const { data } = supabase.auth.onAuthStateChange(() => kick());
+      const timer = setInterval(kick, POLL_MS);
+      window.addEventListener("online", kick);
+      document.addEventListener("visibilitychange", kick);
+      cleanup = () => {
+        data.subscription.unsubscribe();
+        clearInterval(timer);
+        window.removeEventListener("online", kick);
+        document.removeEventListener("visibilitychange", kick);
+      };
+    });
+
     return () => {
-      data.subscription.unsubscribe();
-      clearInterval(timer);
-      window.removeEventListener("online", kick);
-      document.removeEventListener("visibilitychange", kick);
+      cancelled = true;
+      cleanup?.();
     };
   }, [run]);
 

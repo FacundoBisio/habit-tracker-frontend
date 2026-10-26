@@ -1,7 +1,22 @@
 import type { NextConfig } from "next";
 
+const securityHeaders = [
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
+  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+];
+
 const nextConfig: NextConfig = {
+  // Permite que los E2E construyan en otra carpeta sin pisar un `next dev` en marcha.
+  distDir: process.env.NEXT_DIST_DIR ?? ".next",
   reactStrictMode: true,
+  // Next genera AGENTS.md al detectar un agente de IA en `next dev`; no queremos ese archivo en el repo.
+  agentRules: false,
+  async headers() {
+    return [{ source: "/:path*", headers: securityHeaders }];
+  },
 };
 
 export default nextConfig;

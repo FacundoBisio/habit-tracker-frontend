@@ -1,4 +1,4 @@
-import { weekday } from "@/lib/domain/dates";
+import { addDays, weekday } from "@/lib/domain/dates";
 import { parsedResponseSchema, type NLParser, type ParseContext, type ParsedItem } from "./types";
 
 type FetchLike = typeof fetch;
@@ -31,7 +31,11 @@ export function buildSystemPrompt(ctx: ParseContext) {
 function normalizeItems(raw: unknown, ctx: ParseContext): ParsedItem[] {
   const parsed = parsedResponseSchema.parse(raw);
   const ids = new Set(ctx.habits.map((h) => h.id));
-  return parsed.items.map((it) => ({
+  // Una fecha de hace más de un año es casi seguro un error del modelo: se descarta.
+  const oldest = addDays(ctx.today, -366);
+  return parsed.items
+    .filter((it) => it.date >= oldest)
+    .map((it) => ({
     ...(ids.has(it.habit) ? { habitId: it.habit } : { habitGuess: it.habit }),
     amount: it.amount,
     localDate: it.date > ctx.today ? ctx.today : it.date,

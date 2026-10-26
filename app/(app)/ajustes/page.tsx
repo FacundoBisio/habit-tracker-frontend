@@ -2,39 +2,20 @@
 
 import { ChevronRight, Download, Upload } from "lucide-react";
 import { useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/notify";
 import { PageHeader } from "@/components/AppShell";
 import { AccountSection } from "@/components/AccountSection";
+import { Achievements } from "@/components/Achievements";
 import { HabitForm } from "@/components/HabitForm";
 import { ghostBtn, labelCls } from "@/components/Sheet";
 import { cn } from "@/lib/cn";
+import { applyTheme, readTheme, type Theme } from "@/lib/theme";
 import type { WeekStart } from "@/lib/domain/types";
 import { describeSchedule } from "@/lib/domain/schedule";
 import { exportAll, importJson, saveSettings, updateHabit } from "@/lib/store/actions";
 import type { Habit } from "@/lib/store/db";
-import { useHabits, useSettings } from "@/lib/store/hooks";
-
-type Theme = "system" | "light" | "dark";
-
-function readTheme(): Theme {
-  try {
-    const t = localStorage.getItem("theme");
-    return t === "light" || t === "dark" ? t : "system";
-  } catch {
-    return "system";
-  }
-}
-
-function applyTheme(t: Theme) {
-  try {
-    if (t === "system") localStorage.removeItem("theme");
-    else localStorage.setItem("theme", t);
-  } catch {
-    /* almacenamiento bloqueado */
-  }
-  if (t === "system") delete document.documentElement.dataset.theme;
-  else document.documentElement.dataset.theme = t;
-}
+import { useHabitsState, useSettings } from "@/lib/store/hooks";
+import { IconChip } from "@/components/HabitIcon";
 
 const ZONES = [
   "America/Argentina/Cordoba",
@@ -50,7 +31,7 @@ const ZONES = [
 
 export default function SettingsPage() {
   const settings = useSettings();
-  const habits = useHabits(true);
+  const { habits, ready } = useHabitsState(true);
   const [theme, setTheme] = useState<Theme>(readTheme);
   const [editing, setEditing] = useState<Habit | undefined>();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -78,7 +59,25 @@ export default function SettingsPage() {
     <>
       <PageHeader title="Ajustes" />
       <div className="space-y-6">
+        <Group title="Logros">
+          <Achievements />
+        </Group>
+
         <Group title="Preferencias">
+          <Field label="Tu nombre" htmlFor="s-name">
+            <input
+              id="s-name"
+              key={settings.name ?? ""}
+              defaultValue={settings.name ?? ""}
+              maxLength={30}
+              autoComplete="given-name"
+              className="h-12 w-full rounded-xl border border-border bg-surface-2 px-3.5 outline-none transition focus:border-fg/40 focus:bg-surface-solid"
+              onBlur={(e) => {
+                const v = e.target.value.trim();
+                if (v && v !== settings.name) saveSettings({ name: v });
+              }}
+            />
+          </Field>
           <Field label="Zona horaria" htmlFor="s-tz">
             <select id="s-tz" className="h-12 w-full rounded-xl border border-border bg-bg px-3" value={settings.timezone} onChange={(e) => saveSettings({ timezone: e.target.value })}>
               {zones.map((z) => <option key={z}>{z}</option>)}
@@ -105,12 +104,12 @@ export default function SettingsPage() {
         </Group>
 
         <Group title="Hábitos">
-          {habits.length === 0 && <p className="text-sm text-muted">Todavía no hay hábitos.</p>}
+          {ready && habits.length === 0 && <p className="text-sm text-muted">Todavía no hay hábitos.</p>}
           <ul className="divide-y divide-border">
             {habits.map((h) => (
               <li key={h.id} className="flex items-center">
                 <button className="flex min-h-14 flex-1 items-center gap-3 text-left" onClick={() => setEditing(h)}>
-                  <span className="text-xl">{h.emoji}</span>
+                  <IconChip value={h.emoji} size="sm" />
                   <span className="min-w-0 flex-1">
                     <span className={cn("block truncate text-sm font-medium", h.archived && "text-muted line-through")}>{h.name}</span>
                     <span className="block text-xs text-muted">{describeSchedule(h.schedule)}{h.aliases.length ? ` · ${h.aliases.join(", ")}` : ""}</span>
@@ -148,8 +147,8 @@ export default function SettingsPage() {
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
-      <h2 className="mb-2 px-1 text-xs font-medium tracking-wide text-muted uppercase">{title}</h2>
-      <div className="space-y-4 rounded-2xl border border-border bg-surface p-4">{children}</div>
+      <h2 className="mb-2 px-1 font-display text-base font-semibold tracking-tight">{title}</h2>
+      <div className="space-y-4 card p-4">{children}</div>
     </section>
   );
 }

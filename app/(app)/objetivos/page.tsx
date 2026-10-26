@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Target, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/AppShell";
 import { GoalForm } from "@/components/GoalForm";
@@ -12,7 +12,7 @@ import type { Goal } from "@/lib/store/db";
 import { useEntries, useGoals, useSettings, useToday } from "@/lib/store/hooks";
 
 function paceText(delta: number, unit: string, completed: boolean, daysLeft: number) {
-  if (completed) return "¡Completado! 🎉";
+  if (completed) return "¡Completado!";
   if (daysLeft === 0) return "Último día";
   const d = Math.abs(delta);
   if (d < 0.05) return "Justo en ritmo";
@@ -48,7 +48,7 @@ export default function GoalsPage() {
 
       {items.length === 0 ? (
         <div className="mt-10 rounded-3xl border border-dashed border-border p-8 text-center">
-          <p className="text-4xl">🎯</p>
+          <span className="chip mx-auto grid size-16 place-items-center rounded-3xl"><Target className="size-8" strokeWidth={1.8} /></span>
           <h2 className="mt-3 text-lg font-semibold">Sin objetivos todavía</h2>
           <p className="mt-1 mb-5 text-sm text-muted">Cada registro suma solo a los objetivos vinculados.</p>
           <button className={primaryBtn} onClick={() => setOpen(true)}>Crear objetivo</button>
@@ -69,9 +69,9 @@ function GoalCard({ goal, p }: { goal: Goal; p: ReturnType<typeof computeGoalPro
   const unit = goal.kind === "frequency" ? "semanas" : goal.kind === "streak" ? "días" : goal.unit ?? "";
   const done = goal.status === "completed";
   return (
-    <li className={cn("rounded-2xl border border-border bg-surface p-4", done && "border-accent/40")}>
+    <li className={cn("card p-4", done && "border-accent/40")}>
       <div className="flex items-start justify-between gap-2">
-        <h3 className="font-medium">{goal.title}</h3>
+        <h3 className="font-display text-lg font-semibold tracking-tight">{goal.title}</h3>
         <button
           aria-label={`Borrar ${goal.title}`}
           onClick={() => confirm(`¿Borrar "${goal.title}"?`) && deleteGoal(goal.id)}
@@ -81,12 +81,12 @@ function GoalCard({ goal, p }: { goal: Goal; p: ReturnType<typeof computeGoalPro
         </button>
       </div>
       <div className="mt-1 flex items-baseline gap-1.5">
-        <span className="text-2xl font-semibold tabular-nums">{fmt(p.current)}</span>
+        <span className="font-display text-3xl font-semibold tabular-nums">{fmt(p.current)}</span>
         <span className="text-sm text-muted">/ {fmt(p.target)} {unit}</span>
         <span className="ml-auto text-sm font-medium tabular-nums">{p.pct}%</span>
       </div>
       <div className="relative mt-2 h-2 overflow-hidden rounded-full bg-surface-2" role="progressbar" aria-valuenow={p.pct} aria-valuemin={0} aria-valuemax={100}>
-        <div className="h-full rounded-full bg-accent transition-all duration-500" style={{ width: `${p.pct}%` }} />
+        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${p.pct}%`, background: "var(--accent)" }} />
         {!done && p.target > 0 && (
           <div className="absolute inset-y-0 w-0.5 bg-fg/40" style={{ left: `${Math.min(100, (p.expected / p.target) * 100)}%` }} title="Ritmo esperado" />
         )}

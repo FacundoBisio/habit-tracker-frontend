@@ -1,0 +1,1 @@
+ALTER TABLE "habits" ALTER COLUMN "emoji" SET DEFAULT 'sparkles';

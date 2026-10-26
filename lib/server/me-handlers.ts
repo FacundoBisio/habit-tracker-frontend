@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Repo } from "./repo";
 import { generateLinkCode, generateToken } from "./security";
+import { isValidTimeZone } from "./validate";
 
 export interface MeDeps {
   repo: Repo;
@@ -12,18 +13,10 @@ export interface MeDeps {
 const MAX_ACTIVE_TOKENS = 10;
 const LINK_CODE_TTL_MS = 15 * 60_000;
 
-const validZone = (tz: string) => {
-  try {
-    new Intl.DateTimeFormat("es-AR", { timeZone: tz });
-    return true;
-  } catch {
-    return false;
-  }
-};
 
 const settingsPatch = z
   .object({
-    timezone: z.string().refine(validZone, "zona horaria inválida"),
+    timezone: z.string().refine(isValidTimeZone, "zona horaria inválida"),
     weekStartsOn: z.union([z.literal(0), z.literal(1), z.literal(6)]),
     reminderTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "formato HH:MM"),
     remindersEnabled: z.boolean(),

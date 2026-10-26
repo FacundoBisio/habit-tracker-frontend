@@ -2,123 +2,163 @@
 
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
-import { Plus } from "lucide-react";
-import { useMemo, useState } from "react";
-import { toast } from "sonner";
-import { PageHeader } from "@/components/AppShell";
+import { motion } from "framer-motion";
+import { Plus, Sprout, Undo2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { HabitForm } from "@/components/HabitForm";
 import { HabitRow } from "@/components/HabitRow";
 import { LogSheet } from "@/components/LogSheet";
+import { Mascot } from "@/components/Mascot";
+import { Ring } from "@/components/Ring";
+import { WeekStrip } from "@/components/WeekStrip";
 import { celebrate } from "@/components/celebrate";
-import { fmt } from "@/lib/cn";
-import { weekRange } from "@/lib/domain/dates";
-import { isScheduledOn } from "@/lib/domain/schedule";
-import { computeStreak } from "@/lib/domain/streaks";
-import { logEntry, undoEntries } from "@/lib/store/actions";
-import type { Habit } from "@/lib/store/db";
-import { useEntries, useHabits, useSettings, useToday } from "@/lib/store/hooks";
 import { primaryBtn } from "@/components/Sheet";
+import { fmt, unitLabel } from "@/lib/cn";
+import { fireConfetti } from "@/lib/confetti";
+import { addDays } from "@/lib/domain/dates";
+import { activityFor, playActivity } from "@/lib/mascot";
+import { toast } from "@/lib/notify";
+import { adjustDay, logEntry, undoEntries } from "@/lib/store/actions";
+import type { Habit } from "@/lib/store/db";
+import { useSettings } from "@/lib/store/hooks";
+import { useDaySummary, type DayRow } from "@/lib/store/day";
+
+const list = { hidden: {}, show: { transition: { staggerChildren: 0.06, delayChildren: 0.05 } } };
+const item = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 320, damping: 28 } } };
+
+/** "Hoy lunes 26 de octubre" / "Ayer domingo 25 de octubre" / "Martes 20 de octubre". */
+function dayLabel(day: string, today: string) {
+  const base = format(parseISO(day), "EEEE d 'de' MMMM", { locale: es });
+  if (day === today) return `Hoy ${base}`;
+  if (day === addDays(today, -1)) return `Ayer ${base}`;
+  return base.charAt(0).toUpperCase() + base.slice(1);
+}
 
 export default function TodayPage() {
-  const habits = useHabits();
-  const entries = useEntries();
-  const settings = useSettings();
-  const today = useToday();
+  const [picked, setPicked] = useState<string | null>(null);
+  const { rows, done, total, today, day, strip, hasHabits, ready } = useDaySummary(picked ?? undefined);
   const [formOpen, setFormOpen] = useState(false);
-  const [logging, setLogging] = useState<Habit | null>(null);
+  const [editing, setEditing] = useState<Habit | null>(null);
+  const isToday = day === today;
+  const { name } = useSettings();
 
-  const rows = useMemo(() => {
-    const { start, end } = weekRange(today, settings.weekStartsOn);
-    return habits
-      .filter((h) => isScheduledOn(h.schedule, today))
-      .map((habit) => {
-        const mine = entries.filter((e) => e.habitId === habit.id);
-        const todayEntries = mine.filter((e) => e.localDate === today);
-        const weekDays = new Set(mine.filter((e) => e.localDate >= start && e.localDate <= end).map((e) => e.localDate));
-        return {
-          habit,
-          todayIds: todayEntries.map((e) => e.id),
-          state: {
-            todayTotal: todayEntries.reduce((a, e) => a + e.amount, 0),
-            streak: computeStreak(entries, habit.id, habit.schedule, today, settings.weekStartsOn).current,
-            weekly: habit.schedule.type === "weekly" ? { done: weekDays.size, target: habit.schedule.times } : undefined,
-          },
-        };
-      });
-  }, [habits, entries, settings.weekStartsOn, today]);
+  // Confeti grande cuando se completa el día (solo al pasar de incompleto a completo).
+  const wasComplete = useRef(total > 0 && done === total);
+  useEffect(() => {
+    const complete = total > 0 && done === total;
+    if (complete && !wasComplete.current) {
+      fireConfetti(window.innerWidth / 2, 150, 44);
+      playActivity("celebrate");
+    }
+    wasComplete.current = complete;
+  }, [done, total, day]);
 
-  const doneCount = rows.filter((r) => r.state.todayTotal > 0).length;
-
-  async function tap(row: (typeof rows)[number]) {
+  async function toggle(row: DayRow) {
     const { habit } = row;
-    if (habit.kind === "boolean" && row.state.todayTotal > 0) {
+    playActivity(activityFor(habit.emoji)); // 10 s haciendo lo último que tocaste
+    if (row.todayTotal > 0) {
       await undoEntries(row.todayIds);
-      toast(`${habit.emoji} ${habit.name} desmarcado`, {
-        duration: 5000,
-        action: { label: "Deshacer", onClick: () => logEntry({ habitId: habit.id, amount: 1 }) },
+      toast(`${habit.name} desmarcado`, {
+        icon: habit.emoji,
+        action: { label: "Deshacer", onClick: () => void logEntry({ habitId: habit.id, amount: 1, localDate: day }) },
       });
       return;
     }
-    const { entryId, completedGoals } = await logEntry({ habitId: habit.id, amount: habit.defaultAmount });
-    toast.success(
-      habit.kind === "quantity"
-        ? `${habit.emoji} ${habit.name} +${fmt(habit.defaultAmount)} ${habit.unit ?? ""}`
-        : `${habit.emoji} ${habit.name} hecho`,
-      { duration: 5000, action: { label: "Deshacer", onClick: () => undoEntries([entryId]) } },
-    );
+    const { entryId, completedGoals } = await logEntry({ habitId: habit.id, amount: habit.defaultAmount, localDate: day });
+    toast.success(`${habit.name} hecho`, { icon: habit.emoji, action: { label: "Deshacer", onClick: () => void undoEntries([entryId]) } });
     celebrate(completedGoals);
   }
 
+  async function adjust(row: DayRow, delta: number) {
+    const { habit } = row;
+    playActivity(activityFor(habit.emoji));
+    const unit = habit.unit ? ` ${unitLabel(Math.abs(delta), habit.unit)}` : "";
+    const { completedGoals } = await adjustDay(habit.id, day, delta);
+    toast.success(`${habit.name} ${delta > 0 ? "+" : "−"}${fmt(Math.abs(delta))}${unit}`, {
+      icon: habit.emoji,
+      action: { label: "Deshacer", onClick: () => void adjustDay(habit.id, day, -delta) },
+    });
+    celebrate(completedGoals);
+  }
+
+  const next = rows.find((r) => r.todayTotal === 0);
+  const message = !hasHabits
+    ? "¡Hola! Creá tu primer hábito y arrancamos."
+    : total === 0
+      ? "No hay hábitos programados para este día."
+      : !isToday
+        ? done === total
+          ? "Ese día quedó completo."
+          : `Ese día hiciste ${done} de ${total}. Podés corregirlo acá.`
+        : done === total
+          ? "¡Día completo! Muy buen trabajo."
+          : done === 0
+            ? `Empezá por ${next?.habit.name ?? "el primero"}: un toque y listo.`
+            : `Vas ${done} de ${total}. Te falta ${next?.habit.name}.`;
+
   return (
     <>
-      <PageHeader
-        title="Hoy"
-        subtitle={format(parseISO(today), "EEEE d 'de' MMMM", { locale: es })}
-        action={
+      <header className="mb-4 flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="font-display truncate text-[38px] leading-[1.02] font-semibold tracking-tight">Hola, {name ?? ""}</h1>
+          <p className="mt-2 flex items-center gap-2 text-[15px] text-muted">
+            <span>{dayLabel(day, today)}</span>
+            {!isToday && (
+              <button
+                onClick={() => setPicked(null)}
+                className="inline-flex min-h-8 items-center gap-1 rounded-full bg-accent-soft px-2.5 text-xs font-semibold text-accent"
+              >
+                <Undo2 className="size-3" /> Volver a hoy
+              </button>
+            )}
+          </p>
+        </div>
+        {total > 0 && <Ring done={done} total={total} />}
+      </header>
+
+      {ready && hasHabits && <WeekStrip days={strip} selected={day} onSelect={(d) => setPicked(d === today ? null : d)} />}
+
+      {ready && <Mascot message={message} />}
+
+      {!ready ? (
+        <div className="space-y-3" aria-hidden>
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="card h-[74px] animate-pulse rounded-[1.4rem]" />
+          ))}
+        </div>
+      ) : !hasHabits ? (
+        <div className="card card-lg p-8 text-center">
+          <span className="chip mx-auto grid size-16 place-items-center rounded-3xl"><Sprout className="size-8" strokeWidth={1.8} /></span>
+          <h2 className="font-display mt-4 text-xl font-semibold tracking-tight">Empezá con tu primer hábito</h2>
+          <p className="mt-1.5 mb-6 text-sm text-muted">Un toque por día alcanza. Después sumás objetivos.</p>
+          <button className={primaryBtn} onClick={() => setFormOpen(true)}>Crear hábito</button>
+        </div>
+      ) : (
+        <>
+          <motion.ul key={day} variants={list} initial="hidden" animate="show" className="space-y-3">
+            {rows.map((row) => (
+              <motion.li key={`${day}:${row.habit.id}`} variants={item} layout>
+                <HabitRow row={row} onToggle={() => toggle(row)} onAdjust={(d) => adjust(row, d)} onOpen={() => {
+                    playActivity(activityFor(row.habit.emoji));
+                    setEditing(row.habit);
+                  }}
+                />
+              </motion.li>
+            ))}
+          </motion.ul>
           <button
             onClick={() => setFormOpen(true)}
             aria-label="Nuevo hábito"
-            className="grid size-11 place-items-center rounded-full bg-accent text-accent-fg transition active:scale-95"
+            className="mt-3 flex min-h-14 w-full items-center justify-center gap-2 rounded-[1.4rem] border border-dashed border-border text-sm font-medium text-muted transition hover:border-accent hover:text-accent active:scale-[0.99]"
           >
-            <Plus className="size-5" />
+            <Plus className="size-4" /> Agregar hábito
           </button>
-        }
-      />
-
-      {rows.length > 0 && (
-        <div className="mb-4">
-          <div className="mb-1.5 flex justify-between text-xs text-muted">
-            <span>{doneCount} de {rows.length}</span>
-            <span>{Math.round((doneCount / rows.length) * 100)}%</span>
-          </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-surface-2" role="progressbar" aria-valuenow={doneCount} aria-valuemax={rows.length}>
-            <div className="h-full rounded-full bg-accent transition-all duration-500" style={{ width: `${(doneCount / rows.length) * 100}%` }} />
-          </div>
-        </div>
+          {rows.length > 0 && <p className="mt-5 text-center text-xs text-muted">Tocá para registrar. Mantené presionado para corregir.</p>}
+        </>
       )}
-
-      {habits.length === 0 ? (
-        <div className="mt-10 rounded-3xl border border-dashed border-border p-8 text-center">
-          <p className="text-4xl">🌱</p>
-          <h2 className="mt-3 text-lg font-semibold">Empezá con tu primer hábito</h2>
-          <p className="mt-1 mb-5 text-sm text-muted">Un toque por día alcanza. Después sumás objetivos.</p>
-          <button className={primaryBtn} onClick={() => setFormOpen(true)}>Crear hábito</button>
-        </div>
-      ) : rows.length === 0 ? (
-        <p className="mt-10 text-center text-sm text-muted">Hoy no hay hábitos programados. 🎈</p>
-      ) : (
-        <ul className="space-y-2.5">
-          {rows.map((row) => (
-            <li key={row.habit.id}>
-              <HabitRow habit={row.habit} state={row.state} onTap={() => tap(row)} onLongPress={() => setLogging(row.habit)} />
-            </li>
-          ))}
-        </ul>
-      )}
-      {rows.length > 0 && <p className="mt-4 text-center text-xs text-muted">Tocá para registrar · mantené para cantidad, nota o fecha</p>}
 
       <HabitForm open={formOpen} onClose={() => setFormOpen(false)} />
-      <LogSheet habit={logging} today={today} onClose={() => setLogging(null)} />
+      <LogSheet habit={editing} today={day} onClose={() => setEditing(null)} />
     </>
   );
 }

@@ -10,12 +10,10 @@ export function Heatmap({
   totals,
   today,
   weekStartsOn,
-  color,
 }: {
   totals: Map<string, number>;
   today: string;
   weekStartsOn: WeekStart;
-  color: string;
 }) {
   const firstWeek = addDays(startOfWeek(today, weekStartsOn), -52 * 7);
   const weeks = Array.from({ length: 53 }, (_, w) => addDays(firstWeek, w * 7));
@@ -36,7 +34,7 @@ export function Heatmap({
                   key={d}
                   title={`${format(parseISO(date), "d MMM yyyy", { locale: es })}: ${v}`}
                   className="size-3 rounded-[3px] bg-surface-2"
-                  style={v > 0 ? { background: `color-mix(in srgb, ${color} ${Math.round(alpha * 100)}%, transparent)` } : undefined}
+                  style={v > 0 ? { background: `color-mix(in srgb, var(--accent) ${Math.round(alpha * 100)}%, transparent)` } : undefined}
                 />
               );
             })}

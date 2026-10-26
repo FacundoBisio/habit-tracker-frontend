@@ -2,8 +2,9 @@
 
 import { Check, Copy, LogOut } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
-import { apiFetch, getSupabase } from "@/lib/supabase/browser";
+import { toast } from "@/lib/notify";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { apiFetch, loadSupabase } from "@/lib/supabase/browser";
 import { cn } from "@/lib/cn";
 import { ghostBtn, inputCls, labelCls, primaryBtn } from "./Sheet";
 
@@ -29,8 +30,12 @@ const copy = async (text: string, what: string) => {
 };
 
 export function AccountSection() {
-  const supabase = getSupabase();
+  const [supabase, setSupabase] = useState<SupabaseClient | null | undefined>(undefined); // undefined = cargando
   const [email, setEmail] = useState<string | null | undefined>(undefined); // undefined = cargando
+
+  useEffect(() => {
+    loadSupabase().then(setSupabase);
+  }, []);
 
   useEffect(() => {
     if (!supabase) return;
@@ -39,7 +44,8 @@ export function AccountSection() {
     return () => data.subscription.unsubscribe();
   }, [supabase]);
 
-  if (!supabase) {
+  if (supabase === undefined) return <p className="text-sm text-muted">Cargando…</p>;
+  if (supabase === null) {
     return (
       <p className="text-sm text-muted">
         Cuenta sin configurar: faltan <code>NEXT_PUBLIC_SUPABASE_URL</code> y <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code>.
@@ -48,13 +54,12 @@ export function AccountSection() {
     );
   }
   if (email === undefined) return <p className="text-sm text-muted">Cargando…</p>;
-  if (email === null) return <Login />;
-  return <Connected email={email} />;
+  if (email === null) return <Login supabase={supabase} />;
+  return <Connected email={email} supabase={supabase} />;
 }
 
 /** Login por código de 6 dígitos: se tipea dentro de la PWA, sin redirects (que en iOS standalone abren Safari). */
-function Login() {
-  const supabase = getSupabase()!;
+function Login({ supabase }: { supabase: SupabaseClient }) {
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [sent, setSent] = useState(false);
@@ -97,8 +102,7 @@ function Login() {
   );
 }
 
-function Connected({ email }: { email: string }) {
-  const supabase = getSupabase()!;
+function Connected({ email, supabase }: { email: string; supabase: SupabaseClient }) {
   const [tokens, setTokens] = useState<TokenRow[]>([]);
   const [settings, setSettings] = useState<RemoteSettings | null>(null);
   const [newName, setNewName] = useState("iPhone Atajos");
@@ -198,7 +202,7 @@ function Connected({ email }: { email: string }) {
       <section className="space-y-2">
         <h3 className="text-sm font-medium">Telegram</h3>
         {settings?.telegramChatId ? (
-          <p className="text-sm text-muted">Vinculado ✓. Escribile al bot en lenguaje natural.</p>
+          <p className="flex items-center gap-1.5 text-sm text-muted"><Check className="size-4" />Vinculado. Escribile al bot en lenguaje natural.</p>
         ) : (
           <>
             <p className="text-xs text-muted">

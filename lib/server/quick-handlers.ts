@@ -5,6 +5,8 @@ import { resolveItems, type NLParser } from "@/lib/nl/types";
 import type { Repo, ServerHabit } from "./repo";
 import { deterministicUuid, hashToken } from "./security";
 import { fmtNum, impactSummary, refreshGoals } from "./service";
+import { glyph } from "@/lib/habit-icons";
+import { MAX_AMOUNT } from "./validate";
 
 export interface QuickDeps {
   repo: Repo;
@@ -18,7 +20,7 @@ const uuid = z.string().uuid();
 
 const logBody = z.object({
   habit: z.string().min(1),
-  amount: z.number().positive().optional(),
+  amount: z.number().positive().max(MAX_AMOUNT).optional(),
   date: dateStr.optional(),
   note: z.string().max(500).optional(),
   client_id: uuid.optional(),
@@ -63,7 +65,7 @@ async function readJson<T>(req: Request, schema: z.ZodType<T>): Promise<{ data: 
   return { data: parsed.data };
 }
 
-const label = (h: ServerHabit) => `${h.emoji} ${h.name}`;
+const label = (h: ServerHabit) => `${glyph(h.emoji)} ${h.name}`;
 
 export function createQuickHandlers(deps: QuickDeps) {
   return {
@@ -75,7 +77,7 @@ export function createQuickHandlers(deps: QuickDeps) {
         habits: habits.map((h) => ({
           id: h.id,
           name: h.name,
-          emoji: h.emoji,
+          emoji: glyph(h.emoji),
           kind: h.kind,
           unit: h.unit ?? null,
           default_amount: h.defaultAmount,

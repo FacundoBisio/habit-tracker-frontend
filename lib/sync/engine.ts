@@ -1,6 +1,6 @@
 "use client";
 
-import { apiFetch, getSupabase } from "@/lib/supabase/browser";
+import { apiFetch, loadSupabase } from "@/lib/supabase/browser";
 import { db, withRemote, type Entry, type Goal, type Habit } from "@/lib/store/db";
 import { planProgress, planPull, planPush } from "./plan";
 
@@ -35,7 +35,7 @@ async function enqueueEverything() {
 
 /** Empuja lo pendiente (outbox) y después converge al estado del servidor. Devuelve el estado resultante. */
 export async function syncOnce(): Promise<SyncStatus> {
-  const supabase = getSupabase();
+  const supabase = await loadSupabase();
   const session = (await supabase?.auth.getSession())?.data.session;
   if (!supabase || !session) return "off";
   const userId = session.user.id;

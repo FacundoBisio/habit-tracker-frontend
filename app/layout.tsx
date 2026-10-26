@@ -1,12 +1,17 @@
 import type { Metadata, Viewport } from "next";
+import { Bricolage_Grotesque, Instrument_Sans } from "next/font/google";
 import "./globals.css";
 
+const bricolage = Bricolage_Grotesque({ subsets: ["latin"], variable: "--font-bricolage", display: "swap" });
+const instrument = Instrument_Sans({ subsets: ["latin"], variable: "--font-instrument", display: "swap" });
+
 export const metadata: Metadata = {
-  title: "Hábitos",
+  title: "SuperHábitos",
   description: "Registrá tus hábitos y objetivos en 1–2 toques.",
-  applicationName: "Hábitos",
+  applicationName: "SuperHábitos",
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, title: "Hábitos", statusBarStyle: "default" },
+  icons: { icon: "/icon-192.png", apple: "/apple-icon" },
+  appleWebApp: { capable: true, title: "SuperHábitos", statusBarStyle: "default" },
   formatDetection: { telephone: false },
 };
 
@@ -15,8 +20,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fafaf9" },
-    { media: "(prefers-color-scheme: dark)", color: "#0c0a09" },
+    { media: "(prefers-color-scheme: light)", color: "#f7f9f8" },
+    { media: "(prefers-color-scheme: dark)", color: "#090c0a" },
   ],
 };
 
@@ -25,7 +30,7 @@ const themeScript = `try{var t=localStorage.getItem("theme");if(t==="light"||t==
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es-AR" suppressHydrationWarning>
+    <html lang="es-AR" suppressHydrationWarning className={`${bricolage.variable} ${instrument.variable}`}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>

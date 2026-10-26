@@ -63,6 +63,50 @@ export async function logEntry(input: {
   return { entryId: entry.id, completedGoals };
 }
 
+const EPS = 1e-9;
+
+export const sumDay = (entries: Entry[], habitId: string, localDate: string) =>
+  entries.filter((e) => e.habitId === habitId && e.localDate === localDate).reduce((a, e) => a + e.amount, 0);
+
+/**
+ * Suma (delta > 0) o resta (delta < 0) cantidad a un día. Restar quita primero los registros más
+ * recientes y, si hace falta, reemplaza uno por otro más chico: las entradas nunca se editan en
+ * el lugar (así la sincronización solo ve altas y bajas).
+ */
+export async function adjustDay(habitId: string, localDate: string, delta: number) {
+  if (delta > EPS) {
+    const { completedGoals } = await logEntry({ habitId, amount: delta, localDate });
+    return { completedGoals };
+  }
+  if (delta < -EPS) {
+    let remaining = -delta;
+    const settings = await getSettings();
+    await db.transaction("rw", db.entries, async () => {
+      const mine = (await db.entries.where("[habitId+localDate]").equals([habitId, localDate]).toArray()).sort(
+        (a, b) => b.occurredAt - a.occurredAt,
+      );
+      for (const e of mine) {
+        if (remaining <= EPS) break;
+        await db.entries.delete(e.id);
+        if (e.amount > remaining + EPS) {
+          await db.entries.add({ ...e, id: uid(), clientId: uid(), amount: e.amount - remaining });
+          remaining = 0;
+        } else {
+          remaining -= e.amount;
+        }
+      }
+    });
+    await refreshGoalStatuses(settings, null);
+  }
+  return { completedGoals: [] as string[] };
+}
+
+/** Deja el total del día en `total` (0 quita todo lo marcado). */
+export async function setDayTotal(habitId: string, localDate: string, total: number) {
+  const current = sumDay(await db.entries.where("habitId").equals(habitId).toArray(), habitId, localDate);
+  return adjustDay(habitId, localDate, total - current);
+}
+
 export async function removeEntries(ids: string[]) {
   await db.entries.bulkDelete(ids);
 }
@@ -155,7 +199,7 @@ export async function importJson(raw: unknown): Promise<{ habits: number; entrie
     return {
       id,
       name: h.name,
-      emoji: "✅",
+      emoji: "sparkles",
       color: h.color,
       kind: "boolean",
       defaultAmount: 1,

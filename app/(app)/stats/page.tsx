@@ -2,13 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/AppShell";
-import { HABIT_COLORS } from "@/components/HabitForm";
 import { Heatmap } from "@/components/Heatmap";
 import { cn } from "@/lib/cn";
 import { addDays } from "@/lib/domain/dates";
 import { complianceRate } from "@/lib/domain/schedule";
 import { computeStreak } from "@/lib/domain/streaks";
 import { useEntries, useHabits, useSettings, useToday } from "@/lib/store/hooks";
+import { HabitIcon } from "@/components/HabitIcon";
 
 export default function StatsPage() {
   const habits = useHabits();
@@ -56,11 +56,12 @@ export default function StatsPage() {
             aria-pressed={habit?.id === h.id}
             onClick={() => setPick(h.id)}
             className={cn(
-              "min-h-11 shrink-0 rounded-full border px-4 text-sm font-medium transition",
+              "flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-medium transition",
               habit?.id === h.id ? "border-accent bg-accent-soft/60" : "border-border text-muted",
             )}
           >
-            {h.emoji} {h.name}
+            <HabitIcon value={h.emoji} className="size-4" />
+            {h.name}
           </button>
         ))}
       </div>
@@ -73,9 +74,9 @@ export default function StatsPage() {
             <Stat label="Cumplimiento 30 d" value={data.c30} suffix="%" />
             <Stat label="Cumplimiento 90 d" value={data.c90} suffix="%" />
           </div>
-          <section className="rounded-2xl border border-border bg-surface p-4">
+          <section className="card p-4">
             <h2 className="mb-3 text-sm font-medium text-muted">Último año · total {Math.round(data.total * 10) / 10} {unitLabel}</h2>
-            <Heatmap totals={data.totals} today={today} weekStartsOn={settings.weekStartsOn} color={HABIT_COLORS[habit.color] ?? HABIT_COLORS.teal} />
+            <Heatmap totals={data.totals} today={today} weekStartsOn={settings.weekStartsOn} />
           </section>
         </div>
       )}
@@ -85,9 +86,9 @@ export default function StatsPage() {
 
 function Stat({ label, value, suffix }: { label: string; value: number; suffix: string }) {
   return (
-    <div className="rounded-2xl border border-border bg-surface p-4">
+    <div className="card p-4">
       <p className="text-xs text-muted">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums">
+      <p className="font-display mt-1 text-3xl font-semibold tabular-nums">
         {value} <span className="text-sm font-normal text-muted">{suffix}</span>
       </p>
     </div>

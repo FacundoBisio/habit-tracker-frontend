@@ -9,21 +9,50 @@ const EMPTY_HABITS: Habit[] = [];
 const EMPTY_ENTRIES: Entry[] = [];
 const EMPTY_GOALS: Goal[] = [];
 
-export function useSettings(): Settings {
-  return useLiveQuery(() => db.settings.get("me"), []) ?? DEFAULT_SETTINGS;
+/*
+  Último resultado conocido de cada consulta. Al cambiar de pantalla el componente nuevo arranca
+  con estos datos (no con "vacío") y se evita que el contenido salte cuando llega IndexedDB.
+  `undefined` = todavía no se cargó nunca (primera carga de la app).
+*/
+const cache: { habits?: Habit[]; entries?: Entry[]; goals?: Goal[]; settings?: Settings } = {};
+
+export function useSettingsState(): { settings: Settings; ready: boolean } {
+  const live = useLiveQuery(async () => (await db.settings.get("me")) ?? DEFAULT_SETTINGS, [], cache.settings);
+  useEffect(() => {
+    if (live) cache.settings = live;
+  }, [live]);
+  return { settings: live ?? DEFAULT_SETTINGS, ready: live !== undefined };
 }
 
-export function useHabits(includeArchived = false): Habit[] {
-  const all = useLiveQuery(() => db.habits.orderBy("sortOrder").toArray(), []) ?? EMPTY_HABITS;
-  return includeArchived ? all : all.filter((h) => !h.archived);
+export const useSettings = (): Settings => useSettingsState().settings;
+
+export function useHabitsState(includeArchived = false): { habits: Habit[]; ready: boolean } {
+  const live = useLiveQuery(() => db.habits.orderBy("sortOrder").toArray(), [], cache.habits);
+  useEffect(() => {
+    if (live) cache.habits = live;
+  }, [live]);
+  const all = live ?? EMPTY_HABITS;
+  return { habits: includeArchived ? all : all.filter((h) => !h.archived), ready: live !== undefined };
 }
 
-export function useEntries(): Entry[] {
-  return useLiveQuery(() => db.entries.toArray(), []) ?? EMPTY_ENTRIES;
+export const useHabits = (includeArchived = false): Habit[] => useHabitsState(includeArchived).habits;
+
+export function useEntriesState(): { entries: Entry[]; ready: boolean } {
+  const live = useLiveQuery(() => db.entries.toArray(), [], cache.entries);
+  useEffect(() => {
+    if (live) cache.entries = live;
+  }, [live]);
+  return { entries: live ?? EMPTY_ENTRIES, ready: live !== undefined };
 }
+
+export const useEntries = (): Entry[] => useEntriesState().entries;
 
 export function useGoals(): Goal[] {
-  return useLiveQuery(() => db.goals.toArray(), []) ?? EMPTY_GOALS;
+  const live = useLiveQuery(() => db.goals.toArray(), [], cache.goals);
+  useEffect(() => {
+    if (live) cache.goals = live;
+  }, [live]);
+  return live ?? EMPTY_GOALS;
 }
 
 /** Fecha local de hoy en la zona del usuario; se recalcula al cruzar medianoche o volver a la app. */

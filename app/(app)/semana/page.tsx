@@ -5,12 +5,12 @@ import { es } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { PageHeader } from "@/components/AppShell";
-import { HABIT_COLORS } from "@/components/HabitForm";
 import { cn, haptic } from "@/lib/cn";
 import { addDays, weekRange } from "@/lib/domain/dates";
 import { isScheduledOn } from "@/lib/domain/schedule";
 import { logEntry, undoEntries } from "@/lib/store/actions";
 import { useEntries, useHabits, useSettings, useToday } from "@/lib/store/hooks";
+import { HabitIcon } from "@/components/HabitIcon";
 
 export default function WeekPage() {
   const habits = useHabits();
@@ -46,7 +46,7 @@ export default function WeekPage() {
       {habits.length === 0 ? (
         <p className="mt-10 text-center text-sm text-muted">Creá un hábito desde “Hoy” para verlo acá.</p>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-border bg-surface">
+        <div className="overflow-hidden card">
           <div className="grid grid-cols-[1fr_repeat(7,2.5rem)] items-center gap-x-0.5 border-b border-border px-3 py-2 text-center text-[11px] text-muted">
             <span />
             {days.map((d) => (
@@ -58,10 +58,9 @@ export default function WeekPage() {
             ))}
           </div>
           {habits.map((h) => {
-            const hex = HABIT_COLORS[h.color] ?? HABIT_COLORS.teal;
             return (
               <div key={h.id} className="grid grid-cols-[1fr_repeat(7,2.5rem)] items-center gap-x-0.5 border-b border-border px-3 last:border-0">
-                <span className="truncate py-3 pr-2 text-sm">{h.emoji} {h.name}</span>
+                <span className="flex min-w-0 items-center gap-2 truncate py-3 pr-2 text-sm"><HabitIcon value={h.emoji} className="size-4 shrink-0 text-muted" />{h.name}</span>
                 {days.map((d) => {
                   const done = entries.some((e) => e.habitId === h.id && e.localDate === d);
                   const off = d > today || !isScheduledOn(h.schedule, d);
@@ -75,8 +74,8 @@ export default function WeekPage() {
                       className="grid size-10 place-items-center disabled:cursor-default"
                     >
                       <span
-                        className={cn("size-6 rounded-full border transition", done ? "border-transparent" : "border-border", off && !done && "opacity-30")}
-                        style={done ? { background: hex } : undefined}
+                        className={cn("size-6 rounded-full border transition", done ? "border-transparent bg-accent" : "border-border", off && !done && "opacity-30")}
+                        
                       />
                     </button>
                   );

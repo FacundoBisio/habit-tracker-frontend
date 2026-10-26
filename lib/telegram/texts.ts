@@ -3,6 +3,7 @@ import { computeGoalProgress } from "@/lib/domain/goals";
 import { isScheduledOn } from "@/lib/domain/schedule";
 import type { ServerEntry, ServerGoal, ServerHabit, ServerSettings } from "@/lib/server/repo";
 import { fmtNum } from "@/lib/server/service";
+import { glyph } from "@/lib/habit-icons";
 
 export const bar = (pct: number, width = 10) => {
   const filled = Math.round((Math.min(100, pct) / 100) * width);
@@ -23,7 +24,7 @@ export function todayText(habits: ServerHabit[], entries: ServerEntry[], today: 
         const days = new Set(mine.filter((e) => e.localDate >= start && e.localDate <= end).map((e) => e.localDate));
         extra += ` · semana ${days.size}/${h.schedule.times}`;
       }
-      return `${done ? "✅" : "⬜"} ${h.emoji} ${h.name}${extra}`;
+      return `${done ? "✅" : "⬜"} ${glyph(h.emoji)} ${h.name}${extra}`;
     });
   return lines.length ? `📅 Hoy\n${lines.join("\n")}` : "Hoy no tenés hábitos programados. 🎈";
 }
@@ -41,7 +42,7 @@ export function weekText(habits: ServerHabit[], entries: ServerEntry[], today: s
       const cells = days.map((d) => (set.has(d) ? "●" : d > today ? "·" : "○")).join(" ");
       const count = days.filter((d) => set.has(d)).length;
       const target = h.schedule.type === "weekly" ? `/${h.schedule.times}` : "";
-      return `${cells}  ${h.emoji} ${h.name} ${count}${target}`;
+      return `${cells}  ${glyph(h.emoji)} ${h.name} ${count}${target}`;
     });
   return rows.length ? `🗓 Semana\n${head}\n${rows.join("\n")}` : "Todavía no tenés hábitos.";
 }

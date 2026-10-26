@@ -6,6 +6,7 @@ import { deterministicUuid } from "@/lib/server/security";
 import { fmtNum, impactSummary, refreshGoals } from "@/lib/server/service";
 import type { InlineButton, ReplyMarkup, TelegramClient, TelegramUpdate } from "./api";
 import { goalsText, HELP, todayText, UNLINKED, weekText } from "./texts";
+import { glyph } from "@/lib/habit-icons";
 
 export interface BotDeps {
   repo: Repo;
@@ -159,7 +160,7 @@ async function presentPending(
   const byId = new Map(habits.map((h) => [h.id, h]));
   const lines = payload.resolved.map((r) => {
     const h = byId.get(r.habitId)!;
-    return `• ${h.emoji} ${h.name}${h.kind === "quantity" ? ` +${fmtNum(r.amount)}${h.unit ? ` ${h.unit}` : ""}` : ""}${dateLabel(r.localDate, today)}`;
+    return `• ${glyph(h.emoji)} ${h.name}${h.kind === "quantity" ? ` +${fmtNum(r.amount)}${h.unit ? ` ${h.unit}` : ""}` : ""}${dateLabel(r.localDate, today)}`;
   });
   const first = payload.unmatched[0];
   const extra = payload.unmatched.map((u) => `• ❓ “${u.term}” no coincide con ningún hábito`);
@@ -262,7 +263,7 @@ async function handleCallback(chatId: string, messageId: number, callbackId: str
       const qty = first.amount !== 1;
       const habit = await repo.createHabit(userId, {
         name: first.term.charAt(0).toUpperCase() + first.term.slice(1),
-        emoji: "✅",
+        emoji: "sparkles",
         color: "teal",
         kind: qty ? "quantity" : "boolean",
         defaultAmount: qty ? first.amount : 1,

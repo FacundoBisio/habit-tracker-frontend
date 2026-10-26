@@ -27,7 +27,7 @@ export const habits = pgTable(
     id: id(),
     userId: userId(),
     name: text("name").notNull(),
-    emoji: text("emoji").notNull().default("✅"),
+    emoji: text("emoji").notNull().default("sparkles"),
     color: text("color").notNull().default("emerald"),
     kind: text("kind", { enum: ["boolean", "quantity"] }).notNull().default("boolean"),
     unit: text("unit"),

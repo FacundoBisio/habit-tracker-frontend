@@ -1,52 +1,106 @@
 @import "tailwindcss";
 
+/* --p (0–1) es el avance del día: regula cuánto verde profundo aparece en el fondo. */
+@property --p {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
+/*
+  Paleta cerrada: blanco, negro y verde. Nada más.
+  - Íconos: fondo verde; el glifo es blanco en modo claro y negro en modo oscuro (--accent-fg).
+  - Los avisos destructivos no usan rojo: se distinguen por ícono y texto (--danger = color de texto).
+*/
 :root {
-  --bg: #fafaf9;
-  --surface: #ffffff;
-  --surface-2: #f4f4f2;
-  --border: #e7e5e4;
-  --fg: #1c1917;
-  --muted: #78716c;
-  --accent: #0f766e;
-  --accent-soft: #ccfbf1;
+  --p: 0;
+  transition: --p 1.4s cubic-bezier(0.22, 1, 0.36, 1);
+
+  --bg: #f7f9f8;
+  --fg: #0a0f0c;
+  --muted: #5d6662;
+  --surface: rgb(255 255 255 / 0.78);
+  --surface-solid: #ffffff;
+  --surface-2: rgb(10 15 12 / 0.055);
+  --border: rgb(10 15 12 / 0.09);
+  --accent: #148557;
   --accent-fg: #ffffff;
-  --danger: #b91c1c;
+  --accent-soft: rgb(20 133 87 / 0.12);
+  --danger: var(--fg);
+  --nav-bg: rgb(255 255 255 / 0.84);
+  --nav-fg: #5d6662;
+  --nav-border: rgb(10 15 12 / 0.08);
+  --nav-shadow: 0 1px 2px rgb(10 15 12 / 0.05), 0 18px 40px -16px rgb(10 15 12 / 0.3);
+  --chip-shadow: 0 1px 1px rgb(10 15 12 / 0.1), 0 8px 16px -6px rgb(20 133 87 / 0.5);
+  --shadow: 0 1px 2px rgb(10 15 12 / 0.04), 0 10px 26px -14px rgb(10 15 12 / 0.22);
+
+  --flame-orange: #e8590c;
+  --flame-red: #d62828;
+  --g1: #43d49a;
+  --g2: #c3f2dc;
+  --g3: #1fa971;
+  --aura-op: 0.36;
   color-scheme: light;
 }
 
 :root:not([data-theme="light"]) {
   @media (prefers-color-scheme: dark) {
-    --bg: #0c0a09;
-    --surface: #171412;
-    --surface-2: #211d1a;
-    --border: #2b2623;
-    --fg: #f5f5f4;
-    --muted: #a8a29e;
-    --accent: #2dd4bf;
-    --accent-soft: #123b37;
-    --accent-fg: #042f2e;
-    --danger: #f87171;
+    --bg: #090c0a;
+    --fg: #f3f6f4;
+    --muted: #98a39d;
+    --surface: rgb(20 27 23 / 0.7);
+    --surface-solid: #101512;
+    --surface-2: rgb(255 255 255 / 0.06);
+    --border: rgb(255 255 255 / 0.09);
+    --accent: #3dd598;
+    --accent-fg: #04140c;
+    --accent-soft: rgb(61 213 152 / 0.15);
+    --nav-bg: rgb(14 19 16 / 0.86);
+    --nav-fg: #a2b0a8;
+    --nav-border: rgb(255 255 255 / 0.09);
+    --nav-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 20px 44px -16px rgb(0 0 0 / 0.8);
+    --chip-shadow: 0 1px 1px rgb(0 0 0 / 0.6), 0 10px 20px -8px rgb(61 213 152 / 0.45);
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 14px 32px -16px rgb(0 0 0 / 0.7);
+    --flame-orange: #ff9640;
+    --flame-red: #ff5d5d;
+    --g1: #0f7a50;
+    --g2: #0a3d2a;
+    --g3: #1fa971;
+    --aura-op: 0.4;
     color-scheme: dark;
   }
 }
 
 :root[data-theme="dark"] {
-  --bg: #0c0a09;
-  --surface: #171412;
-  --surface-2: #211d1a;
-  --border: #2b2623;
-  --fg: #f5f5f4;
-  --muted: #a8a29e;
-  --accent: #2dd4bf;
-  --accent-soft: #123b37;
-  --accent-fg: #042f2e;
-  --danger: #f87171;
+  --bg: #090c0a;
+  --fg: #f3f6f4;
+  --muted: #98a39d;
+  --surface: rgb(20 27 23 / 0.7);
+  --surface-solid: #101512;
+  --surface-2: rgb(255 255 255 / 0.06);
+  --border: rgb(255 255 255 / 0.09);
+  --accent: #3dd598;
+  --accent-fg: #04140c;
+  --accent-soft: rgb(61 213 152 / 0.15);
+  --nav-bg: rgb(14 19 16 / 0.86);
+  --nav-fg: #a2b0a8;
+  --nav-border: rgb(255 255 255 / 0.09);
+  --nav-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 20px 44px -16px rgb(0 0 0 / 0.8);
+  --chip-shadow: 0 1px 1px rgb(0 0 0 / 0.6), 0 10px 20px -8px rgb(61 213 152 / 0.45);
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 14px 32px -16px rgb(0 0 0 / 0.7);
+  --flame-orange: #ff9640;
+  --flame-red: #ff5d5d;
+  --g1: #0f7a50;
+  --g2: #0a3d2a;
+  --g3: #1fa971;
+  --aura-op: 0.4;
   color-scheme: dark;
 }
 
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);
+  --color-surface-solid: var(--surface-solid);
   --color-surface-2: var(--surface-2);
   --color-border: var(--border);
   --color-fg: var(--fg);
@@ -55,7 +109,8 @@
   --color-accent-soft: var(--accent-soft);
   --color-accent-fg: var(--accent-fg);
   --color-danger: var(--danger);
-  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  --font-sans: var(--font-instrument), ui-sans-serif, -apple-system, "SF Pro Text", "Segoe UI", sans-serif;
+  --font-display: var(--font-bricolage), ui-sans-serif, -apple-system, "SF Pro Display", sans-serif;
 }
 
 html {
@@ -68,6 +123,7 @@ body {
   color: var(--fg);
   font-family: var(--font-sans);
   overscroll-behavior-y: none;
+  transition: background-color 0.4s ease, color 0.4s ease;
 }
 
 /* iOS no hace zoom al enfocar si el texto es >= 16px */
@@ -81,15 +137,140 @@ button {
   touch-action: manipulation;
 }
 
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .no-select {
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
 }
 
+.font-display {
+  font-family: var(--font-display);
+}
+
+/* Superficies de vidrio */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+}
+
+/* Tarjeta de ícono: fondo verde y glifo blanco (claro) / negro (oscuro). `data-on` marca "hecho" con un halo. */
+.chip {
+  background: var(--accent);
+  color: var(--accent-fg);
+  box-shadow: var(--chip-shadow);
+  transition: box-shadow 0.3s ease, transform 0.15s ease, background-color 0.3s ease;
+}
+
+.chip[data-on="true"] {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 28%, transparent), var(--chip-shadow);
+}
+
+/* Opción de ícono en el selector: neutra hasta que se elige (entonces pasa a verde). */
+.icon-option {
+  background: var(--surface-2);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  transition: background-color 0.25s ease, color 0.25s ease, box-shadow 0.25s ease, transform 0.15s ease;
+}
+
+.icon-option[data-on="true"] {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: transparent;
+  box-shadow: var(--chip-shadow);
+}
+
+.card-lg {
+  border-radius: 1.75rem;
+}
+
+/*
+  Aura: tres manchas verdes que derivan despacio. A medida que avanza el día
+  aparece más verde profundo (la tercera mancha).
+*/
+.aura {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.aura i {
+  position: absolute;
+  width: 78vmax;
+  height: 78vmax;
+  border-radius: 9999px;
+  filter: blur(70px);
+  will-change: transform;
+}
+
+.aura i:nth-child(1) {
+  top: -30vmax;
+  left: -26vmax;
+  background: radial-gradient(circle, var(--g1), transparent 66%);
+  opacity: calc(var(--aura-op) * (0.55 + 0.45 * var(--p)));
+  animation: drift-a 46s ease-in-out infinite alternate;
+}
+
+.aura i:nth-child(2) {
+  right: -34vmax;
+  top: 16vh;
+  background: radial-gradient(circle, var(--g2), transparent 66%);
+  opacity: calc(var(--aura-op) * (1 - 0.4 * var(--p)));
+  animation: drift-b 58s ease-in-out infinite alternate;
+}
+
+.aura i:nth-child(3) {
+  bottom: -38vmax;
+  left: 4vmax;
+  width: 64vmax;
+  height: 64vmax;
+  background: radial-gradient(circle, var(--g3), transparent 66%);
+  opacity: calc(var(--aura-op) * clamp(0, (var(--p) * 2.2 - 0.6), 1));
+  animation: drift-c 52s ease-in-out infinite alternate;
+}
+
+@keyframes drift-a {
+  to {
+    transform: translate3d(20vw, 12vh, 0) scale(1.14);
+  }
+}
+@keyframes drift-b {
+  to {
+    transform: translate3d(-24vw, 18vh, 0) scale(0.92);
+  }
+}
+@keyframes drift-c {
+  to {
+    transform: translate3d(22vw, -14vh, 0) scale(1.1);
+  }
+}
+
+@keyframes blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  96% {
+    transform: scaleY(0.1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }

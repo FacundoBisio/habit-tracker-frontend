@@ -43,6 +43,8 @@ export interface Settings {
   id: "me";
   timezone: string;
   weekStartsOn: WeekStart;
+  /** Cómo te llama la app; vacío = todavía no hizo la bienvenida. */
+  name?: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {

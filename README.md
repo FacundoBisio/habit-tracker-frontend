@@ -1,20 +1,31 @@
-# Hábitos
+# SuperHábitos
 
 Tracker de hábitos y objetivos para usar a diario desde el iPhone: **PWA** instalable, **Atajos de iOS** (widget y Siri) y **bot de Telegram** con lenguaje natural. Todo en capa gratuita (Vercel Hobby + Supabase Free + Telegram + Gemini/Groq).
 
+<p>
+  <img src="docs/screenshots/bienvenida-light.png" width="180" alt="Bienvenida" />
+  <img src="docs/screenshots/hoy-light.png" width="180" alt="Hoy, modo claro" />
+  <img src="docs/screenshots/hoy-dark.png" width="180" alt="Hoy, modo oscuro" />
+  <img src="docs/screenshots/ajustes-logros-dark.png" width="180" alt="Logros" />
+</p>
+
 ## Estado
-- Fases 0–4 implementadas y testeadas (91 tests): dominio, PWA, API de Atajos, bot, sincronización.
-- **Pendiente: conectar credenciales** (Supabase, Telegram, LLM, Vercel) y probar de punta a punta. Seguí **`docs/SETUP.md`**.
-- Fase 5 (E2E Playwright, Lighthouse, revisión final) pendiente.
+- Implementado y testeado: dominio, PWA, API de Atajos, bot de Telegram, sincronización, logros, auditoría (`docs/AUDIT.md`).
+- **Pendiente: conectar credenciales** (Supabase, Telegram, LLM, Vercel) y probar de punta a punta. Seguí `docs/SETUP.md`.
+- Próximos pasos priorizados por impacto: `docs/ROADMAP.md`.
 
 ## Qué hace
-- Registrar en 1–2 toques: tap = registrar, mantener = cantidad/nota/fecha, deshacer 5 s.
-- Hábitos de sí/no y de cantidad; frecuencia diaria, X por semana o días fijos.
-- Objetivos (cantidad, suma, frecuencia semanal, racha) con ritmo esperado vs real; cada registro suma solo a los vinculados.
-- Stats: heatmap anual, rachas, cumplimiento a 30/90 días. Fechas siempre en tu zona horaria.
-- Funciona sin señal (IndexedDB) y sincroniza con la nube al volver.
-- API para Atajos: `/api/quick/habits|log|ingest` (ver `docs/IOS_SHORTCUTS.md`).
-- Bot de Telegram: confirma antes de escribir, crea hábitos/alias al vuelo, recordatorios y resumen semanal (ver `docs/TELEGRAM.md`).
+- **Bienvenida:** un personaje se presenta ("Hola, soy SuperHábitos"), pide tu nombre y pasa a la app.
+- **Registrar en 1–2 toques:** tocá un hábito; en los de cantidad usá − / + o tocá para corregir el total del día. Avisos en cola en un espacio fijo, con "Deshacer".
+- **Tira de fechas:** mirá y corregí cualquiera de los últimos 14 días.
+- **Personaje vivo:** respira, parpadea y saluda; al tocar un hábito hace su actividad durante 10 s (pesas, tomar agua, leer, meditar, correr, dormir, bailar).
+- **Objetivos** (cantidad, suma, frecuencia semanal, racha) con ritmo esperado vs real.
+- **Rachas** con llama que pasa a naranja desde 10 y a rojo desde 30.
+- **Logros** en Ajustes (rachas, constancia semanal, registros, días perfectos, objetivos) con insignias 3D y aviso al desbloquear.
+- **Stats:** heatmap anual, rachas, cumplimiento a 30/90 días. Fechas siempre en tu zona horaria.
+- **Modo claro y oscuro**, paleta blanco/negro/verde, sin emojis (íconos).
+- **Sin señal:** funciona offline (IndexedDB) y sincroniza al volver.
+- **API para Atajos** (`/api/quick/*`, ver `docs/IOS_SHORTCUTS.md`) y **bot de Telegram** que confirma antes de escribir (ver `docs/TELEGRAM.md`).
 
 ## Desarrollo local
 ```bash
@@ -22,25 +33,24 @@ npm install
 cp .env.example .env.local   # sin variables la app funciona solo en el dispositivo
 npm run dev
 ```
-Scripts: `npm run lint` · `typecheck` · `test` · `build` · `db:generate` · `db:migrate`.
+Scripts: `npm run lint` · `typecheck` · `test` · `e2e` · `build` · `db:generate` · `db:migrate`.
+
+Los E2E usan el Chrome instalado (no descargan navegadores) y construyen en `.next-e2e`, así que no pisan un `next dev` en marcha.
 
 ## Estructura
 ```
 app/              rutas UI y app/api/{quick,me,sync,telegram,cron}
-components/       UI
-lib/domain/       lógica pura (fechas, rachas, objetivos, matching) — testeada
-lib/store/        IndexedDB (Dexie) + outbox de sincronización
-lib/sync/         plan de push/pull (puro) + motor de sync del cliente
-lib/server/       Repo (memoria para tests, Drizzle en producción), handlers de API
+components/       UI (popups, filas de hábito, personaje, logros, barra superior e inferior)
+lib/domain/       lógica pura (fechas, rachas, objetivos, logros, matching) — testeada
+lib/store/        IndexedDB (Dexie), hooks con caché y outbox de sincronización
+lib/sync/         plan de push/pull (puro) + motor del cliente
+lib/server/       Repo (memoria para tests, Drizzle en producción) y handlers de API
 lib/nl/           NLParser: Gemini → Groq → reglas
-lib/telegram/     handler del bot, textos, recordatorios, webhook
+lib/telegram/     bot, textos, recordatorios, webhook
 lib/db/           esquema Drizzle, migraciones, RLS
-docs/             arquitectura, free tier, guías, setup
+tests/e2e/        Playwright (viewport iPhone)
+docs/             arquitectura, free tier, guías, auditoría, hoja de ruta
 ```
 
 ## Seguridad
-- El servidor nunca confía en un `user_id` del cliente: se deriva del JWT de Supabase o del token de API.
-- Tokens de API: se muestran una vez y se guardan hasheados (SHA-256). Revocables.
-- Webhook de Telegram con `secret_token`; cron con `CRON_SECRET`; comparaciones en tiempo constante.
-- RLS activa en todas las tablas (`lib/db/rls.sql`). Ningún secreto en el cliente (solo `NEXT_PUBLIC_SUPABASE_*`, que son públicas por diseño).
-- Rate limit por token en memoria (por instancia serverless: freno best-effort, no garantía global).
+Resumen (detalle en `docs/AUDIT.md`): el servidor deriva el usuario de la sesión o del token, nunca del cliente; tokens hasheados y revocables; webhook y cron con secreto en tiempo constante; validación Zod con topes; RLS en todas las tablas; cabeceras de seguridad; ningún secreto en el cliente.

@@ -2,13 +2,14 @@
 
 import { endOfMonth, endOfYear, format, parseISO, startOfMonth, startOfYear } from "date-fns";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/notify";
 import { cn } from "@/lib/cn";
 import { addDays } from "@/lib/domain/dates";
 import type { GoalKind, GoalLink } from "@/lib/domain/types";
 import { addGoal } from "@/lib/store/actions";
 import { useHabits } from "@/lib/store/hooks";
 import { Sheet, inputCls, labelCls, primaryBtn } from "./Sheet";
+import { HabitIcon } from "./HabitIcon";
 
 const KINDS: [GoalKind, string, string][] = [
   ["count", "Cantidad de veces", "Leer 12 libros"],
@@ -118,7 +119,7 @@ function Form({ today, onClose }: { today: string; onClose: () => void }) {
             return (
               <div key={h.id} className={cn("flex min-h-12 items-center gap-2 rounded-xl border px-3", on ? "border-accent" : "border-border")}>
                 <button className="flex flex-1 items-center gap-2 py-2 text-left" aria-pressed={on} onClick={() => toggleHabit(h.id)}>
-                  <span>{h.emoji}</span><span className="text-sm">{h.name}</span>
+                  <HabitIcon value={h.emoji} className="size-4" /><span className="text-sm">{h.name}</span>
                 </button>
                 {on && (
                   <label className="flex items-center gap-1.5 text-xs text-muted">

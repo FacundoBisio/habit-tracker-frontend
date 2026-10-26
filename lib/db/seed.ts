@@ -9,9 +9,9 @@ async function main() {
 
   await db.insert(userSettings).values({ userId }).onConflictDoNothing();
   await db.insert(habits).values([
-    { userId, name: "Agua", emoji: "💧", kind: "quantity", unit: "vasos", aliases: ["tomé agua", "vaso"] },
-    { userId, name: "Gym", emoji: "🏋️", schedule: { type: "weekly", times: 3 }, aliases: ["entrené", "pesas"] },
-    { userId, name: "Leer", emoji: "📚", kind: "quantity", unit: "min", defaultAmount: 20, aliases: ["leí"] },
+    { userId, name: "Agua", emoji: "droplets", kind: "quantity", unit: "vasos", aliases: ["tomé agua", "vaso"] },
+    { userId, name: "Gym", emoji: "dumbbell", schedule: { type: "weekly", times: 3 }, aliases: ["entrené", "pesas"] },
+    { userId, name: "Leer", emoji: "book-open", kind: "quantity", unit: "min", defaultAmount: 20, aliases: ["leí"] },
   ]);
   console.log("Seed listo");
   process.exit(0);
