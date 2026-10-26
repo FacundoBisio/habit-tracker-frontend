@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronRight, Download, Upload } from "lucide-react";
-import { useRef, useState } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "@/lib/notify";
 import { PageHeader } from "@/components/AppShell";
 import { AccountSection } from "@/components/AccountSection";
@@ -16,6 +16,7 @@ import { exportAll, importJson, saveSettings, updateHabit } from "@/lib/store/ac
 import type { Habit } from "@/lib/store/db";
 import { useHabitsState, useSettings } from "@/lib/store/hooks";
 import { IconChip } from "@/components/HabitIcon";
+import { readMascotMode, setMascotMode, useWebglSupported } from "@/lib/mascot-3d";
 
 const ZONES = [
   "America/Argentina/Cordoba",
@@ -33,6 +34,15 @@ export default function SettingsPage() {
   const settings = useSettings();
   const { habits, ready } = useHabitsState(true);
   const [theme, setTheme] = useState<Theme>(readTheme);
+  const webgl = useWebglSupported();
+  const mode3d = useSyncExternalStore(
+    (cb) => {
+      window.addEventListener("mascotmodechange", cb);
+      return () => window.removeEventListener("mascotmodechange", cb);
+    },
+    () => readMascotMode() === "3d",
+    () => true,
+  );
   const [editing, setEditing] = useState<Habit | undefined>();
   const fileRef = useRef<HTMLInputElement>(null);
   const zones = ZONES.includes(settings.timezone) ? ZONES : [settings.timezone, ...ZONES];
@@ -90,6 +100,22 @@ export default function SettingsPage() {
               <option value={6}>Sábado</option>
             </select>
           </Field>
+          <label className="flex min-h-12 items-center justify-between gap-3 text-sm">
+            <span>
+              <span className="block font-medium">Personaje en 3D</span>
+              <span className="block text-xs text-muted">
+                {webgl ? "Descarga el modelo la primera vez (~600 KB)." : "Tu dispositivo no soporta 3D: se usa el 2D."}
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              className="size-6 shrink-0"
+              aria-label="Personaje en 3D"
+              checked={webgl && mode3d}
+              disabled={!webgl}
+              onChange={(e) => setMascotMode(e.target.checked ? "3d" : "2d")}
+            />
+          </label>
           <div>
             <span className={labelCls}>Tema</span>
             <div role="radiogroup" className="grid grid-cols-3 gap-1 rounded-xl bg-surface-2 p-1">

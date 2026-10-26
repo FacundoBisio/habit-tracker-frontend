@@ -6,7 +6,7 @@ Alcance: todo el repo (dominio, PWA, API de Atajos, bot, sincronización, seguri
 | Chequeo | Resultado |
 |---|---|
 | Pruebas unitarias (Vitest) | 135 pasan |
-| Pruebas E2E (Playwright, iPhone 14, Chrome) | 20 pasan |
+| Pruebas E2E (Playwright, iPhone 14, Chrome) | 23 pasan |
 | `eslint` / `tsc --noEmit` / `next build` | limpios |
 | Lighthouse móvil (simulación 4× CPU, mediana de 3 corridas) | Rendimiento 80 · Accesibilidad 100 · Buenas prácticas 100 · SEO 100 · CLS 0 · TBT ~340 ms |
 
@@ -65,5 +65,6 @@ Alcance: todo el repo (dominio, PWA, API de Atajos, bot, sincronización, seguri
 
 ## Proceso
 - Las animaciones del personaje se verificaron en Chrome real (entrada, slides, pantalla de nombre, curl, tomar agua, correr, vuelta al reposo a los 10 s, avisos en cola) y con capturas por actividad en claro y oscuro.
+- Personaje 3D: el `.glb` entregado se inspeccionó antes de usarlo (sin extensiones, sin texturas, 606 KB, 9.980 triángulos, licencia CC0/MIT). Un test verifica el contrato del modelo (piezas, morphs) para detectar cambios futuros. Riesgo abierto: no se probó en iPhones reales (consumo de batería con WebGL).
 - Historial local reescrito para quitar atribuciones de Claude; **falta `git push --force-with-lease origin master`** (lo bloqueó el modo automático; lo corrés vos).
 - `npm audit`: una advertencia moderada de `esbuild` vía `drizzle-kit` (solo desarrollo).

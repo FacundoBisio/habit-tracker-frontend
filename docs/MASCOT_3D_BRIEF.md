@@ -1,5 +1,7 @@
 # Brief: mascota 3D para SuperHábitos
 
+> **Estado:** entregado e integrado. El modelo recibido (Nivel A: piezas con los nombres pedidos, 11 morph targets y 11 clips) está en `public/models/mascot.glb`. Las animaciones se resuelven por código en la app (los clips genéricos del archivo se quedaban cortos); el contrato del modelo se verifica en `lib/mascot-3d.test.ts`. Las secciones de abajo se conservan como referencia por si hay que pedir una nueva versión.
+
 Documento para pasarle a una herramienta o artista 3D. Pide un personaje **esfera 3D** con cara, brazos y accesorios, listo para una app web móvil. El entregable es un `.zip` que se integra directamente en el proyecto.
 
 ---

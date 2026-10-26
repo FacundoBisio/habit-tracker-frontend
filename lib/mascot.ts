@@ -86,3 +86,17 @@ const subscribe = (cb: () => void) => {
 export function useActivityOverride(): Activity | null {
   return useSyncExternalStore(subscribe, () => current, () => null);
 }
+
+/** Texto accesible de lo que hace el personaje (lo usan el 2D y el 3D). */
+export const ACTIVITY_LABEL: Record<Activity, string> = {
+  idle: "El personaje te acompaña",
+  wave: "El personaje te saluda",
+  lift: "El personaje levanta pesas",
+  drink: "El personaje toma agua",
+  read: "El personaje lee",
+  meditate: "El personaje medita",
+  run: "El personaje corre",
+  sleep: "El personaje duerme",
+  dance: "El personaje baila",
+  celebrate: "El personaje festeja",
+};

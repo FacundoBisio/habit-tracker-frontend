@@ -54,6 +54,8 @@ test.beforeEach(async ({ page }) => {
   // El splash de arranque (1 vez por sesión) se desactiva salvo en los tests que lo verifican ("splash-test").
   await page.addInitScript(() => {
     if (!sessionStorage.getItem("splash-test")) sessionStorage.setItem("splash-shown", "1");
+    // Por defecto el personaje corre en 2D (más liviano y estable en las pruebas); los tests del 3D lo activan.
+    if (!localStorage.getItem("mascot-mode")) localStorage.setItem("mascot-mode", "2d");
   });
   // Cada test arranca con una base limpia y la bienvenida ya completada.
   await freshDb(page);
@@ -398,4 +400,76 @@ test("los objetivos táctiles principales miden al menos 44px", async ({ page })
     }),
   );
   for (const s of sizes) expect(Math.min(s.w, s.h), s.label).toBeGreaterThanOrEqual(43.5);
+});
+
+
+// ---------------------------------------------------------------------------------------------
+// Personaje 3D (esfera, public/models/mascot.glb)
+// ---------------------------------------------------------------------------------------------
+test.describe("personaje 3D", () => {
+  test.setTimeout(75_000);
+
+  async function enable3d(page: Page) {
+    const webgl = await page.evaluate(() => !!document.createElement("canvas").getContext("webgl2"));
+    test.skip(!webgl, "este navegador no tiene WebGL 2");
+    await page.evaluate(() => localStorage.setItem("mascot-mode", "3d"));
+    await page.reload();
+  }
+
+  test("carga el modelo, dibuja una esfera real en el canvas y responde a las actividades", async ({ page }) => {
+    await createHabit(page, { name: "Pesas", icon: "Gimnasio" });
+    await createHabit(page, { name: "Agua", icon: "Agua" });
+    await createHabit(page, { name: "Leer", icon: "Lectura" }); // queda pendiente: el día no se completa (si no, festeja)
+    await enable3d(page);
+
+    const canvas = page.locator("canvas");
+    await expect(canvas).toHaveCount(1, { timeout: 30_000 });
+    const resting = page.getByRole("img", { name: /^El personaje (te acompaña|te saluda)$/ });
+    await expect(resting).toBeVisible({ timeout: 30_000 });
+    await page.waitForTimeout(1500); // algunos cuadros renderizados
+
+    // El canvas dibuja algo: la captura cambia si lo ocultamos
+    const withModel = await canvas.screenshot();
+    await canvas.evaluate((c) => ((c as HTMLCanvasElement).style.opacity = "0"));
+    const without = await canvas.screenshot();
+    await canvas.evaluate((c) => ((c as HTMLCanvasElement).style.opacity = "1"));
+    expect(withModel.equals(without)).toBe(false);
+    expect(Math.abs(withModel.length - without.length)).toBeGreaterThan(1500);
+
+    // Tocar un hábito cambia la actividad (misma etiqueta accesible que el 2D)
+    await habitRow(page, "Pesas").click();
+    await expect(page.getByRole("img", { name: "El personaje levanta pesas" })).toBeVisible();
+    await page.getByRole("button", { name: /^Sumar .* a Agua$/ }).or(habitRow(page, "Agua")).first().click();
+    await expect(page.getByRole("img", { name: "El personaje toma agua" })).toBeVisible();
+  });
+
+  test("si el modelo no carga, se queda el personaje 2D y la app sigue andando", async ({ page }) => {
+    await createHabit(page, { name: "Meditar", icon: "Mente" });
+    await createHabit(page, { name: "Leer", icon: "Lectura" }); // queda pendiente: el día no se completa
+    await page.route("**/models/mascot.glb", (route) => route.abort());
+    await enable3d(page);
+    await expect(page.locator("canvas")).toHaveCount(0, { timeout: 30_000 });
+    await expect(page.getByRole("img", { name: /^El personaje/ })).toBeVisible();
+    await expect(greeting(page)).toHaveText(`Hola, ${NAME}`);
+    await habitRow(page, "Meditar").click();
+    await expect(page.getByRole("img", { name: "El personaje medita" })).toBeVisible();
+  });
+
+  test("el interruptor de Ajustes cambia entre 3D y 2D y se recuerda al recargar", async ({ page }) => {
+    const webgl = await page.evaluate(() => !!document.createElement("canvas").getContext("webgl2"));
+    test.skip(!webgl, "este navegador no tiene WebGL 2");
+    await createHabit(page, { name: "Meditar" });
+    await page.getByRole("link", { name: "Ajustes" }).click();
+    const toggle = page.getByRole("checkbox", { name: "Personaje en 3D" });
+    await expect(toggle).not.toBeChecked(); // las pruebas arrancan en 2D
+    await toggle.check();
+    await page.reload();
+    await expect(page.getByRole("checkbox", { name: "Personaje en 3D" })).toBeChecked();
+    await page.getByRole("link", { name: "Hoy" }).click();
+    await expect(page.locator("canvas")).toHaveCount(1, { timeout: 30_000 });
+    await page.getByRole("link", { name: "Ajustes" }).click();
+    await page.getByRole("checkbox", { name: "Personaje en 3D" }).uncheck();
+    await page.getByRole("link", { name: "Hoy" }).click();
+    await expect(page.locator("canvas")).toHaveCount(0);
+  });
 });

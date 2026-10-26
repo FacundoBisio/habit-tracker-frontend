@@ -1,24 +1,13 @@
 "use client";
 
 import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from "framer-motion";
-import { useEffect, useRef } from "react";
-import { playActivity, useActivityOverride, type Activity } from "@/lib/mascot";
+import dynamic from "next/dynamic";
+import { useEffect, useRef, useState } from "react";
+import { ACTIVITY_LABEL, playActivity, useActivityOverride, type Activity } from "@/lib/mascot";
+import { useMascot3dEnabled } from "@/lib/mascot-3d";
 import {
   GROUND, H, W, bodyPath, computePose, createJelly, outline, solveArms, stepJelly, stepRig, type Jelly, type Look, type Pose, type V,
 } from "@/lib/slime-rig";
-
-const LABEL: Record<Activity, string> = {
-  idle: "El personaje te acompaña",
-  wave: "El personaje te saluda",
-  lift: "El personaje levanta pesas",
-  drink: "El personaje toma agua",
-  read: "El personaje lee",
-  meditate: "El personaje medita",
-  run: "El personaje corre",
-  sleep: "El personaje duerme",
-  dance: "El personaje baila",
-  celebrate: "El personaje festeja",
-};
 
 const GEL = "color-mix(in srgb, var(--accent) 82%, white)";
 const GEL_DARK = "color-mix(in srgb, var(--accent) 62%, black)";
@@ -201,7 +190,7 @@ function render(svg: SVGSVGElement, p: Pose, jelly: Jelly, activity: Activity, t
  * `requestAnimationFrame` escribiendo atributos directamente (sin re-renders de React), se pausa
  * fuera de pantalla o en segundo plano y, con "menos movimiento", dibuja una sola pose.
  */
-export function MascotFigure({ activity, size = 128, interactive = true }: { activity: Activity; size?: number; interactive?: boolean }) {
+function SlimeFigure({ activity, size = 128, interactive = true }: { activity: Activity; size?: number; interactive?: boolean }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const activityRef = useRef<Activity>(activity);
   const lookRef = useRef<Look>({ x: 0, y: 0 });
@@ -297,7 +286,7 @@ export function MascotFigure({ activity, size = 128, interactive = true }: { act
     <div className="[perspective:700px]">
       <motion.div
         role="img"
-        aria-label={LABEL[activity]}
+        aria-label={ACTIVITY_LABEL[activity]}
         className="shrink-0 touch-pan-y"
         style={{ rotateX, rotateY, transformStyle: "preserve-3d", width: size, height: size * 0.875 }}
         onPointerMove={(e) => {
@@ -431,6 +420,36 @@ export function MascotFigure({ activity, size = 128, interactive = true }: { act
           </g>
         </svg>
       </motion.div>
+    </div>
+  );
+}
+
+// three.js y el modelo se descargan solo si se usa el 3D (el módulo entero es de carga diferida).
+const Mascot3D = dynamic(() => import("./Mascot3D"), { ssr: false });
+
+/**
+ * Personaje del usuario: la esfera 3D si el dispositivo tiene WebGL 2, el usuario no pidió "menos
+ * movimiento" y eligió 3D; si no (o mientras carga / si falla), el slime 2D. Una sola caja con el
+ * mismo tamaño en ambos casos, así no hay saltos de layout al cambiar.
+ */
+export function MascotFigure({ activity, size = 128, interactive = true }: { activity: Activity; size?: number; interactive?: boolean }) {
+  const enabled = useMascot3dEnabled();
+  const [ready, setReady] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  if (!enabled || failed) return <SlimeFigure activity={activity} size={size} interactive={interactive} />;
+
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size * 0.875 }}>
+      {!ready && <SlimeFigure activity={activity} size={size} interactive={interactive} />}
+      <Mascot3D
+        activity={activity}
+        size={size}
+        interactive={interactive}
+        ready={ready}
+        onReady={() => setReady(true)}
+        onError={() => setFailed(true)}
+      />
     </div>
   );
 }

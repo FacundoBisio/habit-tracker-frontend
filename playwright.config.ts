@@ -14,6 +14,7 @@ export default defineConfig({
     baseURL: `http://localhost:${PORT}`,
     // Se usa el Chrome instalado (no se descargan navegadores). Viewport y UA de iPhone 14.
     channel: "chrome",
+    launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] },
     viewport: { width: 390, height: 844 },
     deviceScaleFactor: 3,
     isMobile: true,

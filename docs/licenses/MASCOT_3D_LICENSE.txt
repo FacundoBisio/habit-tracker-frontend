@@ -1,0 +1,12 @@
+SUPERHÁBITOS 3D MASCOT ASSET LICENSE (CC0 1.0 Universal / MIT Dual License)
+
+Copyright (c) 2026 SuperHábitos Project
+
+Permission is hereby granted, free of charge, to any person or organization obtaining a copy
+of this 3D character asset ("mascot.glb", associated meshes, morph targets, animations,
+previews, and documentation), to deal in the Asset without restriction, including without
+limitation the rights to use, copy, modify, merge, publish, distribute, embed within mobile
+and desktop web applications (PWA / Three.js / React Three Fiber), sublicense, and/or sell
+copies of the Asset for commercial and non-commercial purposes.
+
+THE ASSET IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
