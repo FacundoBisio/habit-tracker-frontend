@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Activity } from "./mascot";
 import {
-  L1, L2, blendPose, blink3, computePose3, createRig, dist, solveLimbs3, stepRig3, twoBoneIK3, volumeScale, type Pose3, type V3,
+  L1, L2, blendPose, blendPoseInto, blink3, computePose3, computePose3Into, createAnimator3, createLimbs3, createRig, dist,
+  solveLimbs3, solveLimbs3Into, stepAnimator3, stepRig3, stepRig3InPlace, twoBoneIK3, volumeScale, type Pose3, type V3,
 } from "./mascot-3d-rig";
 
 const ACTIVITIES: Activity[] = ["idle", "wave", "lift", "drink", "read", "meditate", "run", "sleep", "dance", "celebrate"];
@@ -159,7 +160,7 @@ describe("un solo movimiento principal por actividad", () => {
     expect(Math.abs(rig.pose.lift - 0.14)).toBeLessThan(1e-3);
   });
 
-  it("blendPose mezcla sin saltos y el curl cambia de modo una sola vez", () => {
+  it("blendPose mezcla sin saltos: el curl mezcla su peso (no cambia de modo de golpe)", () => {
     const a = computePose3("lift", 1.2);
     const b = computePose3("dance", 0.3);
     expect(blendPose(a, b, 0)).toEqual({ ...a, curl: a.curl });
@@ -167,5 +168,46 @@ describe("un solo movimiento principal por actividad", () => {
     expect(blendPose(a, b, 1).curl).toBe(b.curl);
     const mid = blendPose(a, b, 0.5);
     expect(mid.eR).toBeCloseTo((a.eR + b.eR) / 2, 6);
+    expect(mid.curlW).toBeCloseTo(0.5, 6);
+    expect(mid.curl).toBe(a.curl); // la fase es la de la pose que usa el curl
+  });
+});
+
+describe("versiones en el lugar (sin objetos nuevos por cuadro)", () => {
+  it("computePose3Into / blendPoseInto / stepRig3InPlace / solveLimbs3Into dan lo mismo que las inmutables", () => {
+    const out = { ...computePose3("idle", 0) };
+    for (const a of ACTIVITIES) {
+      expect(computePose3Into(out, a, 2.345, { x: 0.2, y: 0.1 }, 0.1)).toEqual(computePose3(a, 2.345, { x: 0.2, y: 0.1 }, 0.1));
+    }
+    const a = computePose3("read", 1.1);
+    const b = computePose3("wave", 0.4);
+    const expected = blendPose(a, b, 0.37);
+    expect(blendPoseInto({ ...a }, a, b, 0.37)).toEqual(expected);
+    const aliasA = { ...a };
+    expect(blendPoseInto(aliasA, aliasA, b, 0.37)).toEqual(expected); // `out` puede ser una de las entradas
+    const aliasB = { ...b };
+    expect(blendPoseInto(aliasB, a, aliasB, 0.37)).toEqual(expected);
+
+    const rig = createRig(a);
+    const before = stepRig3(rig, b, 1 / 60);
+    expect(stepRig3InPlace(rig, b, 1 / 60)).toEqual(before);
+    const L = createLimbs3();
+    expect(solveLimbs3Into(b, L)).toEqual(solveLimbs3(b));
+  });
+
+  it("stepAnimator3 reutiliza siempre los mismos objetos", () => {
+    const an = createAnimator3();
+    const refs = [an.rig.pose, an.target, an.limbs, an.limbs.handL, an.props, an.props.book];
+    for (let i = 0; i < 120; i++) stepAnimator3(an, 1 / 60, i < 60 ? "idle" : "read", { x: 0.3, y: 0, w: 1 }, i === 30);
+    refs.forEach((r, i) => expect(r).toBe([an.rig.pose, an.target, an.limbs, an.limbs.handL, an.props, an.props.book][i]));
+  });
+
+  it("IK: un brazo casi escondido no hace volar el codo", () => {
+    const s: V3 = [0.46, 0.48, 0.04];
+    for (const e of [1e-3, 2e-4, 1e-4, 5e-5, 1e-6, 0]) {
+      const { elbow, hand } = twoBoneIK3(s, [0.7, 0.3, 0.1], L1 * e, L2 * e, [0.5, -0.8, 0.2]);
+      expect(dist(s, elbow), `e=${e}`).toBeLessThanOrEqual(L1 * e + 1e-12);
+      expect(dist(s, hand), `e=${e}`).toBeLessThanOrEqual((L1 + L2) * e + 1e-12);
+    }
   });
 });

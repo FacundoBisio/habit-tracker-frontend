@@ -49,22 +49,41 @@ export function activityFor(habitIcon: string | undefined): Activity {
 /** Cuánto dura una actividad disparada por un toque. */
 export const ACTIVITY_MS = 10_000;
 
+/** Tope de la espera para terminar el gesto en curso (un ciclo de la actividad más larga, con margen). */
+export const MAX_EXIT_WAIT_MS = 5_000;
+
 let current: Activity | null = null;
 let timer: ReturnType<typeof setTimeout> | null = null;
 const listeners = new Set<() => void>();
+let exitDelay: ((activity: Activity) => number) | null = null;
+
+/**
+ * Quién sabe cuánto le falta al gesto en curso para terminar bien (ms): lo registra el motor 3D, que conoce la fase
+ * de la animación. Sin nadie registrado (2D, tests) la actividad termina justo a tiempo.
+ */
+export function setActivityExitDelay(fn: ((activity: Activity) => number) | null) {
+  exitDelay = fn;
+}
 
 /**
  * El personaje hace `activity` durante `ms` (10 s por defecto) y después vuelve a su estado
- * por defecto. Un toque nuevo reemplaza al anterior y reinicia el tiempo.
+ * por defecto. Un toque nuevo reemplaza al anterior y reinicia el tiempo. Al vencer, si el gesto
+ * quedó a la mitad (el vaso subiendo, la mancuerna arriba) espera al próximo punto de salida natural
+ * (como mucho `MAX_EXIT_WAIT_MS`).
  */
 export function playActivity(activity: Activity, ms = ACTIVITY_MS) {
   if (timer) clearTimeout(timer);
   current = activity;
   listeners.forEach((l) => l());
-  timer = setTimeout(() => {
+  const finish = () => {
     current = null;
     timer = null;
     listeners.forEach((l) => l());
+  };
+  timer = setTimeout(() => {
+    const extra = Math.min(MAX_EXIT_WAIT_MS, Math.max(0, exitDelay?.(activity) || 0));
+    if (extra > 0) timer = setTimeout(finish, extra);
+    else finish();
   }, ms);
 }
 

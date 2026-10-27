@@ -5,11 +5,13 @@ import {
   WebGLRenderer, type Mesh, type MeshStandardMaterial, type Object3D,
 } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import type { Activity } from "@/lib/mascot";
-import { MODEL_URL, REQUIRED_NODES, setMascotMode } from "@/lib/mascot-3d";
+import { setActivityExitDelay, type Activity } from "@/lib/mascot";
+import { MODEL_URL, REQUIRED_NODES } from "@/lib/mascot-3d";
 import { mascotStats, setMascotStatus } from "@/lib/mascot-engine-state";
-import { SEG1, SEG2, blendPose, computePose3, createRig, solveLimbs3, stepRig3, volumeScale, type Pose3, type V3 } from "@/lib/mascot-3d-rig";
-import { toast } from "@/lib/notify";
+import {
+  SEG1, SEG2, createAnimator3, createLook3, naturalExitDelay, pointLook3, pupilOffset3, releaseLook3, stepAnimator3,
+  updateLook3, volumeScaleInto, type Limbs3, type Look, type Pose3, type Props3, type V3,
+} from "@/lib/mascot-3d-rig";
 
 /**
  * Motor único del personaje 3D. Hay UN renderer, UN canvas, UN modelo parseado y UN bucle de animación para
@@ -22,7 +24,6 @@ import { toast } from "@/lib/notify";
 const OVERSCAN = 1.3;
 /** Tamaño de los props respecto del modelo original (se leen mejor a ~140 px de ancho). */
 const PROP_SCALE = { dumbbell: 2.0, glass: 2.3, book: 2.0 } as const;
-const BLEND = 0.3; // mezcla corta entre actividades: las dos poses no se pisan
 const SLOW_WORK_MS = 25; // si dibujar un cuadro cuesta más que esto de promedio, el equipo no da
 const SLOW_WINDOW_S = 2;
 const rad = MathUtils.degToRad;
@@ -77,21 +78,18 @@ let throttle30 = false; // calidad adaptativa: 30 fps en equipos justos
 let skip = false;
 let workAvg = 0;
 let workSince = 0;
-let slowStrikes = 0;
 
-// Animación (vive en el motor, no en el componente: al mover el canvas no hay saltos)
-let rig = createRig();
-let t = 0;
-let actStart = 0;
-let currentAct: Activity = "idle";
-let prevAct: Activity = "idle";
-let prevStart = 0;
-let blendStart = -1;
-let pokeAt = -1;
+// Animación (vive en el motor, no en el componente: al mover el canvas no hay saltos). El bucle de cada cuadro
+// (actividad, mezcla, toque, resortes, brazos y props) es `stepAnimator3`, el mismo que prueban los tests.
+const anim = createAnimator3();
 let wantedAct: Activity = "idle";
 let wantPoke = false;
 let lastFrame = 0;
-const look = { x: 0, y: 0 };
+/** Mirada al puntero: se suelta sola ~1,5 s después del último movimiento (y enseguida al levantar el dedo). */
+const look = createLook3();
+const NO_LOOK: Look = { x: 0, y: 0, w: 0 };
+const pupil = { x: 0, y: 0 };
+const volume = { sx: 1, sy: 1, sz: 1 };
 
 const setMorph = (name: string, value: number) => {
   const list = morphs.get(name);
@@ -107,9 +105,7 @@ const d1 = new Vector3();
 const d2 = new Vector3();
 const q1 = new Quaternion();
 const qInv = new Quaternion();
-const hv = new Vector3();
-const hv2 = new Vector3();
-const set3 = (v: Vector3, p: V3) => v.set(p[0], p[1], p[2]);
+const setPos = (o: Object3D, p: V3) => o.position.set(p[0], p[1], p[2]);
 
 /** Orienta el brazo: el nodo del brazo apunta al codo y el antebrazo, del codo a la mano. */
 function poseArm(a: Arm, S: V3, E: V3, H: V3, scale: number) {
@@ -132,11 +128,17 @@ export function setTilt(x: number, y: number) {
   tilt.y = y;
 }
 
-function apply(p: Pose3, tiltGain: number) {
+/** Prop visible según su visibilidad (0–1), escalado desde su tamaño base. */
+function showProp(o: Object3D, v: number, base: number) {
+  o.visible = v > 0.03;
+  o.scale.setScalar(base * v);
+}
+
+function apply(p: Pose3, L: Limbs3, P: Props3, tiltGain: number) {
   if (!root || !outer) return;
 
   // Cuerpo: aplastado/estirado con el volumen compensado, rebote e inclinaciones
-  const vs = volumeScale(p.sy);
+  const vs = volumeScaleInto(volume, p.sy);
   root.position.y = p.lift;
   root.scale.set(vs.sx, vs.sy, vs.sz);
   root.rotation.set(rad(p.rotX), rad(p.rotY), rad(p.rotZ));
@@ -152,14 +154,14 @@ function apply(p: Pose3, tiltGain: number) {
   setMorph("cheeksPuff", p.cheeks);
   setMorph("bicepFlex", p.flex);
   if (pupilL && pupilR) {
-    pupilL.position.x = pupilRest.lx + p.lookX * 0.032;
-    pupilL.position.y = pupilRest.ly - p.lookY * 0.026;
-    pupilR.position.x = pupilRest.rx + p.lookX * 0.032;
-    pupilR.position.y = pupilRest.ry - p.lookY * 0.026;
+    pupilOffset3(p, pupil); // mirada acotada a [−1, 1]: la pupila nunca se sale del ojo
+    pupilL.position.x = pupilRest.lx + pupil.x;
+    pupilL.position.y = pupilRest.ly + pupil.y;
+    pupilR.position.x = pupilRest.rx + pupil.x;
+    pupilR.position.y = pupilRest.ry + pupil.y;
   }
 
-  // Brazos (IK)
-  const L = solveLimbs3(p);
+  // Brazos (IK, ya resueltos por el animador)
   if (armL) poseArm(armL, L.shoulderL, L.elbowL, L.handL, L.scaleL);
   if (armR) poseArm(armR, L.shoulderR, L.elbowR, L.handR, L.scaleR);
   if (bicep) {
@@ -167,29 +169,21 @@ function apply(p: Pose3, tiltGain: number) {
     bicep.scale.setScalar(0.6 + 0.5 * p.flex);
   }
 
-  // Props en las manos
-  const show = (o: Object3D, v: number, base: number) => {
-    o.visible = v > 0.03;
-    o.scale.setScalar(base * v);
-  };
-  show(props.dumbbell, p.vDumbbell, PROP_SCALE.dumbbell);
+  // Props en las manos (posiciones calculadas por el animador)
+  showProp(props.dumbbell, p.vDumbbell, PROP_SCALE.dumbbell);
   if (props.dumbbell.visible) {
-    set3(hv, L.handR);
-    props.dumbbell.position.set(hv.x, hv.y + 0.01, hv.z + 0.02);
-    props.dumbbell.rotation.set(0, Math.PI / 2, rad(-8 * p.curl));
+    setPos(props.dumbbell, P.dumbbell);
+    props.dumbbell.rotation.set(0, Math.PI / 2, rad(-8 * Math.max(0, p.curl)));
   }
-  show(props.glass, p.vGlass, PROP_SCALE.glass);
+  showProp(props.glass, p.vGlass, PROP_SCALE.glass);
   if (props.glass.visible) {
-    set3(hv, L.handR);
-    props.glass.position.set(hv.x, hv.y + 0.07 * (1 - p.glassTilt / 120), hv.z + 0.02);
-    props.glass.rotation.set(0, 0, -rad(p.glassTilt));
-    props.water.scale.set(1, Math.max(0.02, p.water), 1);
+    setPos(props.glass, P.glass);
+    props.glass.rotation.set(0, 0, -rad(MathUtils.clamp(p.glassTilt, 0, 120)));
+    props.water.scale.set(1, MathUtils.clamp(p.water, 0.02, 1), 1);
   }
-  show(props.book, p.vBook, PROP_SCALE.book);
+  showProp(props.book, p.vBook, PROP_SCALE.book);
   if (props.book.visible) {
-    set3(hv, L.handL);
-    set3(hv2, L.handR);
-    props.book.position.set((hv.x + hv2.x) / 2, (hv.y + hv2.y) / 2 - 0.07, (hv.z + hv2.z) / 2 + 0.05);
+    setPos(props.book, P.book);
     props.book.rotation.set(rad(78), 0, 0);
     props.page.rotation.set(0, 0, rad(p.page));
   }
@@ -226,29 +220,12 @@ function frame(now: number) {
   const t0 = performance.now();
   const dt = Math.max(0.001, Math.min(0.05, (now - lastFrame) / 1000)); // nunca negativo: rAF puede llegar antes
   lastFrame = now;
-  t += dt;
 
-  if (wantedAct !== currentAct) {
-    prevAct = currentAct;
-    prevStart = actStart;
-    currentAct = wantedAct;
-    actStart = t; // cada actividad arranca su ciclo desde el principio (anticipación incluida)
-    blendStart = t;
-  }
-  if (wantPoke) {
-    wantPoke = false;
-    pokeAt = t;
-  }
-  const lookNow = a.interactive ? look : { x: 0, y: 0 };
-  const pokeT = pokeAt >= 0 ? t - pokeAt : -1;
-  let target = computePose3(currentAct, currentAct === "idle" ? t : t - actStart, lookNow, pokeT);
-  const w = blendStart >= 0 ? (t - blendStart) / BLEND : 1;
-  if (w < 1) {
-    const before = computePose3(prevAct, prevAct === "idle" ? t : t - prevStart, lookNow, pokeT);
-    target = blendPose(before, target, w);
-  }
-  rig = stepRig3(rig, target, dt);
-  apply(rig.pose, currentAct === "idle" ? 1 : 0);
+  updateLook3(look, now / 1000);
+  const poke = wantPoke;
+  wantPoke = false;
+  stepAnimator3(anim, dt, wantedAct, a.interactive ? look : NO_LOOK, poke);
+  apply(anim.rig.pose, anim.limbs, anim.props, anim.act === "idle" ? 1 : 0);
   renderer.render(scene, camera);
 
   if (!a.announced) {
@@ -259,25 +236,16 @@ function frame(now: number) {
   watchPerformance(performance.now() - t0, now);
 }
 
-/** Calidad adaptativa: si dibujar cuesta demasiado, primero 30 fps; si sigue mal, se pasa a 2D (una sola vez). */
+/**
+ * Calidad adaptativa: si dibujar cuesta demasiado, se baja a 30 fps. Nunca se cambia solo a la bola 2D: el
+ * personaje es la esfera 3D (la bola es solo para cuando el 3D directamente no puede andar).
+ */
 function watchPerformance(work: number, now: number) {
   workAvg = workAvg * 0.9 + work * 0.1;
   if (!workSince) workSince = now;
   if (now - workSince < SLOW_WINDOW_S * 1000) return;
   workSince = now;
-  if (workAvg <= SLOW_WORK_MS) {
-    slowStrikes = 0;
-    return;
-  }
-  if (!throttle30) {
-    throttle30 = true;
-    return;
-  }
-  if (++slowStrikes >= 1) {
-    setMascotMode("2d");
-    setMascotStatus("failed");
-    toast("Pasamos el personaje a 2D para que la app ande más fluida. Podés cambiarlo en Ajustes.", { duration: 6000 });
-  }
+  if (workAvg > SLOW_WORK_MS) throttle30 = true;
 }
 
 function startLoop() {
@@ -296,8 +264,11 @@ const onMove = (e: PointerEvent) => {
   const a = top();
   if (!a || !a.interactive) return;
   const r = a.box.getBoundingClientRect();
-  look.x = MathUtils.clamp((e.clientX - (r.left + r.width / 2)) / 260, -1, 1);
-  look.y = MathUtils.clamp((e.clientY - (r.top + r.height * 0.5)) / 260, -1, 1);
+  pointLook3(look, (e.clientX - (r.left + r.width / 2)) / 260, (e.clientY - (r.top + r.height * 0.5)) / 260, performance.now() / 1000);
+};
+/** Al levantar el dedo (táctil) la mirada empieza a volver enseguida: no queda clavada donde se tocó. */
+const onUp = (e: PointerEvent) => {
+  if (e.pointerType !== "mouse") releaseLook3(look, performance.now() / 1000);
 };
 
 function placeCanvas(box: HTMLElement) {
@@ -354,6 +325,8 @@ function createRenderer() {
   });
   document.addEventListener("visibilitychange", onVis);
   window.addEventListener("pointermove", onMove, { passive: true });
+  window.addEventListener("pointerup", onUp, { passive: true });
+  window.addEventListener("pointercancel", onUp, { passive: true });
 }
 
 /** Resuelve los nodos del modelo y le da los materiales propios (se hace una sola vez al cargar). */
@@ -415,20 +388,7 @@ function setupModel(model: Object3D) {
   props.page = get("Prop_BookPage");
   props.fx = get("FX");
 
-  // La mancuerna del archivo trae triángulos con índices fuera de rango (apuntan a vértices que no existen y
-  // dibujan una cuña negra gigante): se descartan esos triángulos.
-  model.traverse((o) => {
-    const g = (o as Mesh).geometry;
-    const idx = g?.index;
-    if (!idx) return;
-    const n = g.attributes.position.count;
-    const keep: number[] = [];
-    for (let i = 0; i + 2 < idx.count; i += 3) {
-      const a = idx.getX(i), b = idx.getX(i + 1), c = idx.getX(i + 2);
-      if (a < n && b < n && c < n) keep.push(a, b, c);
-    }
-    if (keep.length !== idx.count) g.setIndex(keep);
-  });
+  // (Los índices rotos de la mancuerna original ya vienen corregidos en el archivo: lo verifica `lib/mascot-3d.test.ts`.)
 
   model.traverse((o) => {
     const m = o as Mesh;
@@ -438,8 +398,15 @@ function setupModel(model: Object3D) {
       morphs.get(name)!.push({ mesh: m, index });
     }
   });
-  apply(rig.pose, 1);
+  apply(anim.rig.pose, anim.limbs, anim.props, 1);
 }
+
+/**
+ * Cuánto falta (ms) para que la actividad que se ve llegue a un punto de salida natural (la usa `playActivity` al
+ * vencer los 10 s, para no cortar un gesto a la mitad). Si el bucle no corre (no se ve), no hace esperar.
+ */
+const exitDelayMs = (activity: Activity) =>
+  raf && anim.act === activity ? naturalExitDelay(activity, anim.t - anim.actStart) * 1000 : 0;
 
 /**
  * Crea el renderer, baja y parsea el modelo y compila los shaders. Idempotente: el modelo se baja una sola vez.
@@ -458,10 +425,12 @@ export function loadEngine(): Promise<void> {
       renderer!.setSize(8, 8, false);
       renderer!.compile(scene, camera);
       ready = true;
+      setActivityExitDelay(exitDelayMs);
       setMascotStatus("ready");
       startLoop();
-    } catch {
+    } catch (err) {
       // Sin WebGL, contexto rechazado o modelo roto: se queda la bola 2D, sin romper nada.
+      console.warn("[personaje 3D] se usa la bola 2D:", err);
       setMascotStatus("failed");
     }
   })();
