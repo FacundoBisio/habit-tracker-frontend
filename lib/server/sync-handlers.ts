@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { nameSchema } from "@/lib/domain/name";
+import { HABIT_ICONS } from "@/lib/habit-icons";
 import type { MeDeps } from "./me-handlers";
 import type { ServerEntry, ServerGoal, ServerHabit } from "./repo";
-import { MAX_AMOUNT, isValidTimeZone } from "./validate";
+import { MAX_AMOUNT, MAX_BODY_BYTES, isValidTimeZone, readJsonBody } from "./validate";
 
 const uuid = z.string().uuid();
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -13,25 +14,36 @@ const schedule = z.union([
   z.object({ type: z.literal("days_of_week"), days: z.array(z.number().int().min(0).max(6)).min(1).max(7) }),
 ]);
 
+const ICON_KEYS = new Set<string>(HABIT_ICONS.map((i) => i.key));
+/** Emoji suelto (hábitos viejos guardaban un emoji en vez de la clave del ícono): solo pictogramas, hasta 8 caracteres. */
+const SHORT_EMOJI = /^(?:\p{Extended_Pictographic}|\p{Emoji_Component}|\p{Emoji_Modifier}|\u200d|\ufe0f|\u20e3)+$/u;
+const isShortEmoji = (s: string) => [...s].length <= 8 && SHORT_EMOJI.test(s) && /[^\x00-\x7f]/.test(s);
+/** Lo que guarda la app: un nombre ("green", "emerald", "teal"…), un hex o una variable CSS. */
+const COLOR = /^(?:[a-z][a-z0-9-]{0,23}|#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})|var\(--[a-z0-9-]{1,32}\))$/i;
+
 const habitSchema = z.object({
   id: uuid,
   name: z.string().min(1).max(80),
-  emoji: z.string().max(24),
-  color: z.string().max(20),
+  emoji: z.string().max(24).refine((e) => ICON_KEYS.has(e) || isShortEmoji(e), "ícono inválido"),
+  color: z.string().max(40).regex(COLOR, "color inválido"),
   kind: z.enum(["boolean", "quantity"]),
   unit: z.string().max(20).optional(),
   defaultAmount: z.number().positive().max(MAX_AMOUNT),
   schedule,
   archived: z.boolean(),
-  sortOrder: z.number().int(),
+  sortOrder: z.number().int().min(0).max(10_000),
   aliases: z.array(z.string().max(60)).max(30),
 });
 
-const entrySchema = z.object({
+const MIN_OCCURRED_AT = Date.UTC(2000, 0, 1);
+const DAY_MS = 86_400_000;
+
+/** `now` acota el futuro: un registro no puede ser de más de un día adelante (margen para relojes y zonas). */
+const entrySchema = (now: number) => z.object({
   id: uuid,
   habitId: uuid,
   localDate: date,
-  occurredAt: z.number(),
+  occurredAt: z.number().min(MIN_OCCURRED_AT).max(now + DAY_MS),
   amount: z.number().positive().max(MAX_AMOUNT),
   note: z.string().max(500).optional(),
   source: z.enum(["app", "shortcut", "siri", "bot", "import"]),
@@ -50,9 +62,9 @@ const goalSchema = z.object({
   links: z.array(z.object({ habitId: uuid, weight: z.number().positive().max(MAX_AMOUNT) })).max(50),
 });
 
-export const syncPush = z.object({
+export const syncPushSchema = (now: number) => z.object({
   habits: z.array(habitSchema).max(500).default([]),
-  entries: z.array(entrySchema).max(5000).default([]),
+  entries: z.array(entrySchema(now)).max(5000).default([]),
   goals: z.array(goalSchema).max(200).default([]),
   deleted: z
     .object({
@@ -110,7 +122,10 @@ export function createSyncHandlers(deps: MeDeps) {
     async push(req: Request) {
       const userId = await deps.getUserId(req);
       if (!userId) return Response.json({ ok: false, error: "No autenticado" }, { status: 401 });
-      const parsed = syncPush.safeParse(await req.json().catch(() => null));
+      // El tamaño se controla antes de parsear: un cuerpo enorme no llega a req.json()
+      const body = await readJsonBody(req, MAX_BODY_BYTES);
+      if (body.tooLarge) return Response.json({ ok: false, error: "Pedido demasiado grande" }, { status: 413 });
+      const parsed = syncPushSchema(deps.now().getTime()).safeParse(body.value);
       if (!parsed.success) {
         return Response.json({ ok: false, error: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") }, { status: 400 });
       }

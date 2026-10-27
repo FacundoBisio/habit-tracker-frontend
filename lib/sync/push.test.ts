@@ -58,7 +58,7 @@ describe("push del outbox en tandas", () => {
 
     // Todo en un solo pedido (lo de antes) el servidor lo rechaza siempre
     const all = await s.deps.post({ habits: [habit], entries: [...s.local.entry.values()] });
-    expect(all.status).toBe(400);
+    expect([400, 413]).toContain(all.status);
     s.requests.length = 0;
 
     const result = await pushOutbox(s.outbox(), { timezone: "UTC", weekStartsOn: 1 }, s.deps);
