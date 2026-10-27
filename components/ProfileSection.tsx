@@ -2,7 +2,7 @@
 
 import { Pencil } from "lucide-react";
 import { useState } from "react";
-import { NAME_MAX, nameError, nameLength, normalizeName } from "@/lib/domain/name";
+import { NAME_MAX, nameError, nameLength, normalizeName } from "@/lib/domain/name-rules";
 import { playActivity } from "@/lib/mascot";
 import { toast } from "@/lib/notify";
 import { saveName } from "@/lib/store/actions";

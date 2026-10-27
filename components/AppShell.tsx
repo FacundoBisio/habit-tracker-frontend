@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { mascot3dAllowed, preloadMascot } from "@/lib/mascot-engine-state";
 import { endIntroReplay, startTour, useOnboarding } from "@/lib/onboarding";
 import { useSessionFlag } from "@/lib/session-flag";
+import { registerServiceWorker } from "@/lib/sw-register";
 import { useAchievementUnlocks } from "@/lib/store/achievements";
 import { useTodayProgress } from "@/lib/store/day";
 import { useOnline, useSettingsState } from "@/lib/store/hooks";
@@ -50,9 +51,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [ready, settings.name, settings.tourDoneAt, tourPending]);
 
   useEffect(() => {
-    if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => {});
-    }
+    if (process.env.NODE_ENV === "production") registerServiceWorker();
   }, []);
 
   return (

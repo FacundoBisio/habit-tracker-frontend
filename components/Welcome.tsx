@@ -2,7 +2,7 @@
 
 import { m } from "framer-motion";
 import { useState } from "react";
-import { nameError, normalizeName } from "@/lib/domain/name";
+import { nameError, normalizeName } from "@/lib/domain/name-rules";
 import { saveName } from "@/lib/store/actions";
 import { useSessionFlag } from "@/lib/session-flag";
 import { MascotFigure } from "./Mascot";
