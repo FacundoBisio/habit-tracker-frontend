@@ -1,7 +1,7 @@
 "use client";
 
 import { liveQuery } from "dexie";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { toLocalDate } from "@/lib/domain/dates";
 import { DEFAULT_SETTINGS, db, type Entry, type Goal, type Habit, type Settings } from "./db";
@@ -33,7 +33,9 @@ export function useHabitsState(includeArchived = false): { habits: Habit[]; read
     if (live) cache.habits = live;
   }, [live]);
   const all = live ?? EMPTY_HABITS;
-  return { habits: includeArchived ? all : all.filter((h) => !h.archived), ready: live !== undefined };
+  // Misma referencia mientras la tabla no cambie: si no, cada render invalidaba los useMemo que dependen de los hábitos.
+  const habits = useMemo(() => (includeArchived ? all : all.filter((h) => !h.archived)), [all, includeArchived]);
+  return { habits, ready: live !== undefined };
 }
 
 export const useHabits = (includeArchived = false): Habit[] => useHabitsState(includeArchived).habits;

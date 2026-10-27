@@ -82,6 +82,7 @@ test("registrar un hábito, ver el progreso del día y deshacer", async ({ page 
 });
 
 test("cada registro suma al objetivo vinculado, lo completa y se reabre al deshacer", async ({ page }) => {
+  test.setTimeout(60_000); // incluye una espera de hasta 20 s del aviso de objetivo completo
   await createHabit(page, { name: "Agua", quantity: { unit: "vasos", perTap: "2" } });
 
   await page.getByRole("link", { name: "Objetivos" }).click();
@@ -647,4 +648,18 @@ test.describe("personaje 3D", () => {
     await page.getByRole("link", { name: "Hoy" }).click();
     await expect(page.locator("canvas")).toHaveCount(0);
   });
+});
+
+test("Stats: el mapa de calor arranca en el mes en que empezaste y se ve lo reciente", async ({ page }) => {
+  await createHabit(page, { name: "Leer" });
+  await habitRow(page, "Leer").click();
+  await expect(habitRow(page, "Leer")).toHaveAccessibleName(/hecho/i);
+  await page.getByRole("link", { name: "Stats" }).click();
+  const map = page.getByRole("img", { name: /Mapa de calor desde/ });
+  const month = new Date().toLocaleDateString("es-AR", { month: "long", year: "numeric", timeZone: "America/Argentina/Cordoba" });
+  await expect(map).toHaveAttribute("aria-label", `Mapa de calor desde ${month}`);
+  // Un solo mes: entra entero, sin desplazamiento; la celda de hoy está pintada y visible.
+  const box = await map.evaluate((el) => ({ scroll: el.scrollWidth - el.clientWidth }));
+  expect(box.scroll).toBeLessThanOrEqual(0);
+  await expect(map.locator('[title$=": 1"]')).toBeVisible();
 });

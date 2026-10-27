@@ -85,3 +85,17 @@ export function useDaySummary(selected?: string) {
     };
   }, [habits, entries, settings.weekStartsOn, today, day, habitsReady, entriesReady]);
 }
+
+/** Solo el avance de hoy (para el aura del fondo): sin rachas ni tira de días. */
+export function useTodayProgress(): number {
+  const { habits } = useHabitsState();
+  const { entries } = useEntriesState();
+  const today = useToday();
+  return useMemo(() => {
+    const due = habits.filter((h) => isScheduledOn(h.schedule, today));
+    if (!due.length) return 0;
+    const hit = new Set<string>();
+    for (const e of entries) if (e.localDate === today && e.amount > 0) hit.add(e.habitId);
+    return due.filter((h) => hit.has(h.id)).length / due.length;
+  }, [habits, entries, today]);
+}

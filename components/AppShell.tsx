@@ -7,7 +7,7 @@ import { mascot3dAllowed, preloadMascot } from "@/lib/mascot-engine-state";
 import { endIntroReplay, startTour, useOnboarding } from "@/lib/onboarding";
 import { useSessionFlag } from "@/lib/session-flag";
 import { useAchievementUnlocks } from "@/lib/store/achievements";
-import { useDaySummary } from "@/lib/store/day";
+import { useTodayProgress } from "@/lib/store/day";
 import { useOnline, useSettingsState } from "@/lib/store/hooks";
 import { useSync } from "@/lib/sync/use-sync";
 import { Aura } from "./Aura";
@@ -25,7 +25,7 @@ const Tour = dynamic(() => import("./Tour").then((m) => m.Tour), { ssr: false })
 export function AppShell({ children }: { children: React.ReactNode }) {
   const online = useOnline();
   const { status, pending } = useSync();
-  const { pct } = useDaySummary();
+  const pct = useTodayProgress();
   const { settings, ready } = useSettingsState();
   // Hasta que el usuario no ponga su nombre se muestra la bienvenida (la app se ve mientras carga).
   const welcome = ready && !settings.name;

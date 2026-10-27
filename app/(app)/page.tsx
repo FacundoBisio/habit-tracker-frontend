@@ -36,7 +36,20 @@ function dayLabel(day: string, today: string) {
 
 export default function TodayPage() {
   const [picked, setPicked] = useState<string | null>(null);
-  const { rows, done, total, today, day, strip, hasHabits, ready } = useDaySummary(picked ?? undefined);
+  const summary = useDaySummary(picked ?? undefined);
+  const { today, day, strip, hasHabits, ready } = summary;
+  // Respuesta inmediata: la fila se marca al tocar, antes de que IndexedDB guarde y se relea el historial.
+  // Vale solo mientras la base no cambió (`base`): cuando llegan los datos reales se descarta sola.
+  const [optimisticState, setOptimisticState] = useState<{ base: DayRow[]; map: Record<string, number> }>({ base: [], map: {} });
+  const optimistic = optimisticState.base === summary.rows ? optimisticState.map : {};
+  const setOptimistic = (update: (map: Record<string, number>) => Record<string, number>) =>
+    setOptimisticState((o) => ({ base: summary.rows, map: update(o.base === summary.rows ? o.map : {}) }));
+  const pending = useRef(new Set<string>());
+  const rows = Object.keys(optimistic).length
+    ? summary.rows.map((r) => (r.habit.id in optimistic ? { ...r, todayTotal: optimistic[r.habit.id] } : r))
+    : summary.rows;
+  const total = rows.length;
+  const done = rows.filter((r) => r.todayTotal > 0).length;
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Habit | null>(null);
   const isToday = day === today;
@@ -55,18 +68,30 @@ export default function TodayPage() {
 
   async function toggle(row: DayRow) {
     const { habit } = row;
+    if (pending.current.has(habit.id)) return; // el toque anterior todavía se está guardando
+    pending.current.add(habit.id);
+    const undo = row.todayTotal > 0;
+    setOptimistic((o) => ({ ...o, [habit.id]: undo ? 0 : habit.defaultAmount }));
     playActivity(activityFor(habit.emoji)); // 10 s haciendo lo último que tocaste
-    if (row.todayTotal > 0) {
-      await undoEntries(row.todayIds);
-      toast(`${habit.name} desmarcado`, {
-        icon: habit.emoji,
-        action: { label: "Deshacer", onClick: () => void logEntry({ habitId: habit.id, amount: 1, localDate: day }) },
-      });
-      return;
+    try {
+      if (undo) {
+        await undoEntries(row.todayIds);
+        toast(`${habit.name} desmarcado`, {
+          icon: habit.emoji,
+          action: { label: "Deshacer", onClick: () => void logEntry({ habitId: habit.id, amount: 1, localDate: day }) },
+        });
+        return;
+      }
+      const { entryId, completedGoals } = await logEntry({ habitId: habit.id, amount: habit.defaultAmount, localDate: day });
+      toast.success(`${habit.name} hecho`, { icon: habit.emoji, action: { label: "Deshacer", onClick: () => void undoEntries([entryId]) } });
+      celebrate(completedGoals);
+    } catch {
+      // No se guardó: la fila vuelve a mostrar lo que hay en la base.
+      setOptimistic((o) => Object.fromEntries(Object.entries(o).filter(([id]) => id !== habit.id)));
+      toast.error("No se pudo guardar. Probá de nuevo.");
+    } finally {
+      pending.current.delete(habit.id);
     }
-    const { entryId, completedGoals } = await logEntry({ habitId: habit.id, amount: habit.defaultAmount, localDate: day });
-    toast.success(`${habit.name} hecho`, { icon: habit.emoji, action: { label: "Deshacer", onClick: () => void undoEntries([entryId]) } });
-    celebrate(completedGoals);
   }
 
   async function adjust(row: DayRow, delta: number) {
@@ -145,7 +170,7 @@ export default function TodayPage() {
         <>
           <m.ul key={day} variants={list} initial="hidden" animate="show" className="space-y-3">
             {rows.map((row, i) => (
-              <m.li key={`${day}:${row.habit.id}`} variants={item} layout="position" data-tour={i === 0 ? "fila-habito" : undefined}>
+              <m.li key={`${day}:${row.habit.id}`} variants={item} data-tour={i === 0 ? "fila-habito" : undefined}>
                 <HabitRow row={row} onToggle={() => toggle(row)} onAdjust={(d) => adjust(row, d)} onOpen={() => {
                     playActivity(activityFor(row.habit.emoji));
                     setEditing(row.habit);
