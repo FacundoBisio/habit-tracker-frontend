@@ -7,6 +7,8 @@ export interface OutboxRow {
   kind: Kind;
   id: string;
   op: "upsert" | "delete";
+  /** Motivo si el servidor lo rechazó: sigue en el outbox (se reintenta) pero no cuenta como pendiente. */
+  rejected?: string;
 }
 
 /** Colapsa el outbox: por (kind,id) vale solo la última operación. */
@@ -52,3 +54,14 @@ export function planPull(localIds: string[], serverIds: string[], pendingIds: Se
 }
 
 export const planProgress = (pending: number): "synced" | "pending" => (pending > 0 ? "pending" : "synced");
+
+/** Cuánto falta subir (sin contar lo rechazado) y qué registros rechazó el servidor. */
+export function summarizeOutbox(rows: Pick<OutboxRow, "id" | "rejected">[]): { pending: number; rejected: string[] } {
+  const rejected = new Set<string>();
+  let pending = 0;
+  for (const r of rows) {
+    if (r.rejected) rejected.add(r.id);
+    else pending++;
+  }
+  return { pending, rejected: [...rejected] };
+}

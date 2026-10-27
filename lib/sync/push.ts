@@ -17,10 +17,14 @@ export interface PushDeps {
   post(body: unknown): Promise<Response>;
   /** Borra del outbox las filas confirmadas por el servidor. */
   done(seqs: number[]): Promise<void>;
+  /** Marca filas que el servidor rechazó: quedan en el outbox (no se pierden) y se reintentan en la próxima. */
+  reject(seqs: number[], reason: string): Promise<void>;
 }
 
 export interface PushResult {
   status: "ok" | "unauthorized" | "error";
+  /** Ids de registros que el servidor rechazó en esta sincronización. */
+  rejected: string[];
 }
 
 interface Batch {
@@ -59,6 +63,7 @@ export async function pushOutbox(rows: OutboxRow[], settings: PushSettings, deps
     seqsOf.set(key, [...(seqsOf.get(key) ?? []), r.seq]);
   }
 
+  const rejectedIds: string[] = [];
   let first = true;
   for (const b of planBatches(rows)) {
     const [habits, entries, goals] = await Promise.all([
@@ -75,14 +80,25 @@ export async function pushOutbox(rows: OutboxRow[], settings: PushSettings, deps
       ...(first ? { settings } : {}),
     });
     first = false;
-    if (res.status === 401) return { status: "unauthorized" };
-    if (!res.ok) return { status: "error" };
+    if (res.status === 401) return { status: "unauthorized", rejected: rejectedIds };
+    if (!res.ok) return { status: "error", rejected: rejectedIds };
 
+    const body = (await res.json().catch(() => ({}))) as { rejected?: { id: string; reason?: string }[] };
+    const rejected = new Map((body.rejected ?? []).map((r) => [r.id, r.reason || "Rechazado por el servidor"]));
     const seqs: number[] = [];
+    const byReason = new Map<string, number[]>();
     for (const k of ["habit", "goal", "entry"] as const) {
-      for (const id of [...b.upserts[k], ...b.deletes[k]]) seqs.push(...(seqsOf.get(`${k}:${id}`) ?? []));
+      for (const id of [...b.upserts[k], ...b.deletes[k]]) {
+        const own = seqsOf.get(`${k}:${id}`) ?? [];
+        const reason = k === "entry" ? rejected.get(id) : undefined;
+        if (reason) {
+          rejectedIds.push(id);
+          byReason.set(reason, [...(byReason.get(reason) ?? []), ...own]);
+        } else seqs.push(...own);
+      }
     }
+    for (const [reason, marked] of byReason) await deps.reject(marked, reason);
     await deps.done(seqs);
   }
-  return { status: "ok" };
+  return { status: "ok", rejected: rejectedIds };
 }

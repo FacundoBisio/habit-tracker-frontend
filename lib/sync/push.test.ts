@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createMemoryRepo } from "@/lib/server/memory-repo";
 import { createSyncHandlers } from "@/lib/server/sync-handlers";
-import type { OutboxRow } from "./plan";
+import { planPull, summarizeOutbox, type OutboxRow } from "./plan";
 import { pushOutbox, type PushDeps } from "./push";
 
 const H1 = "11111111-1111-4111-8111-111111111111";
@@ -36,6 +36,10 @@ function setup() {
     done: async (seqs) => {
       const drop = new Set(seqs);
       outbox = outbox.filter((r) => !drop.has(r.seq));
+    },
+    reject: async (seqs, reason) => {
+      const mark = new Set(seqs);
+      outbox = outbox.map((r) => (mark.has(r.seq) ? { ...r, rejected: reason } : r));
     },
   };
   return { repo, local, enqueue, deps, requests, outbox: () => outbox };
@@ -95,5 +99,42 @@ describe("push del outbox en tandas", () => {
     expect(result.status).toBe("ok");
     expect(s.requests).toHaveLength(1);
     expect((await s.repo.getSettings("u1")).weekStartsOn).toBe(0);
+  });
+});
+
+describe("registros rechazados por el servidor", () => {
+  const ORPHAN = "99999999-9999-4999-8999-999999999999";
+
+  it("quedan en el outbox marcados (no se pierden) y el resto se confirma", async () => {
+    const s = setup();
+    s.local.habit.set(H1, habit);
+    s.enqueue("habit", H1);
+    const ok = entry(1);
+    const bad = { ...entry(2), habitId: ORPHAN }; // su hábito no existe en el servidor
+    for (const e of [ok, bad]) {
+      s.local.entry.set(e.id, e);
+      s.enqueue("entry", e.id);
+    }
+
+    const result = await pushOutbox(s.outbox(), { timezone: "UTC", weekStartsOn: 1 }, s.deps);
+
+    expect(result.status).toBe("ok");
+    expect(result.rejected).toEqual([bad.id]);
+    expect(s.outbox()).toEqual([expect.objectContaining({ kind: "entry", id: bad.id, rejected: expect.any(String) })]);
+
+    // El pull siguiente no lo borra del dispositivo aunque el servidor no lo tenga
+    const pending = new Set(s.outbox().map((r) => r.id));
+    expect(planPull([ok.id, bad.id], [ok.id], pending).remove).toEqual([]);
+
+    // Lo rechazado no cuenta como pendiente (no dispara sincronizaciones en bucle), pero se informa aparte
+    expect(summarizeOutbox(s.outbox())).toEqual({ pending: 0, rejected: [bad.id] });
+
+    // Se reintenta en la próxima sincronización: si ahora el hábito existe, entra y sale del outbox
+    s.local.habit.set(ORPHAN, { ...habit, id: ORPHAN });
+    s.enqueue("habit", ORPHAN);
+    const retry = await pushOutbox(s.outbox(), { timezone: "UTC", weekStartsOn: 1 }, s.deps);
+    expect(retry.rejected).toEqual([]);
+    expect(s.outbox()).toHaveLength(0);
+    expect(await s.repo.listEntries("u1")).toHaveLength(2);
   });
 });

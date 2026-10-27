@@ -24,7 +24,7 @@ const Tour = dynamic(() => import("./Tour").then((m) => m.Tour), { ssr: false })
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const online = useOnline();
-  const { status, pending } = useSync();
+  const { status, pending, rejected } = useSync();
   const pct = useTodayProgress();
   const { settings, ready } = useSettingsState();
   // Hasta que el usuario no ponga su nombre se muestra la bienvenida (la app se ve mientras carga).
@@ -69,7 +69,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             transition={{ duration: 0.5, ease: [0.32, 0.72, 0, 1] }}
           >
             <div className="relative z-10 mx-auto flex min-h-dvh max-w-md flex-col px-5 pt-[calc(0.5rem+env(safe-area-inset-top))] pb-[calc(7rem+env(safe-area-inset-bottom))]">
-              <TopBar sync={status} pending={pending} />
+              <TopBar sync={status} pending={pending} rejected={rejected} />
               {!online && (
                 <div className="card mb-3 flex items-center gap-2 rounded-2xl px-3.5 py-2.5 text-xs text-muted" role="status">
                   <CloudOff className="size-4" /> Sin conexión: tus registros se guardan en este dispositivo

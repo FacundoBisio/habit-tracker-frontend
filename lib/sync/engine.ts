@@ -4,7 +4,7 @@ import { toast } from "@/lib/notify";
 import { saveName } from "@/lib/store/actions";
 import { apiFetch, loadSupabase } from "@/lib/supabase/browser";
 import { db, withRemote, type Entry, type Goal, type Habit } from "@/lib/store/db";
-import { planProgress, planPull } from "./plan";
+import { planProgress, planPull, summarizeOutbox } from "./plan";
 import { pushOutbox } from "./push";
 
 export type SyncStatus = "off" | "syncing" | "synced" | "pending" | "error";
@@ -80,6 +80,7 @@ export async function syncOnce(): Promise<SyncStatus> {
   if (firstSync) await enqueueEverything();
 
   const rows = await db.outbox.toArray();
+  const alreadyRejected = new Set(summarizeOutbox(rows).rejected);
   const settings = (await db.settings.get("me")) ?? { timezone: "America/Argentina/Cordoba", weekStartsOn: 1 };
   const tables = { habit: db.habits, entry: db.entries, goal: db.goals } as const;
 
@@ -96,6 +97,9 @@ export async function syncOnce(): Promise<SyncStatus> {
       load: (kind, ids) => (tables[kind] as typeof db.habits).bulkGet(ids),
       post: (body) => apiFetch("/api/sync", { method: "POST", body: JSON.stringify(body) }),
       done: (seqs) => db.outbox.bulkDelete(seqs),
+      reject: async (seqs, reason) => {
+        await db.outbox.bulkUpdate(seqs.map((key) => ({ key, changes: { rejected: reason } })));
+      },
     },
   );
   if (push.status === "unauthorized") {
@@ -103,6 +107,9 @@ export async function syncOnce(): Promise<SyncStatus> {
     return "off";
   }
   if (push.status === "error") return "error";
+  // Se avisa solo de lo que se rechazó por primera vez (los reintentos no vuelven a mostrar el aviso).
+  const fresh = push.rejected.filter((id) => !alreadyRejected.has(id)).length;
+  if (fresh) notifyRejected(fresh);
 
   const pull = await apiFetch("/api/sync");
   if (pull.status === 401) {
@@ -135,5 +142,25 @@ export async function syncOnce(): Promise<SyncStatus> {
   } catch {
     /* almacenamiento bloqueado: se volverá a subir todo, que es idempotente */
   }
-  return planProgress(await db.outbox.count());
+  // Lo rechazado no cuenta como pendiente (se informa aparte y se reintenta en la próxima)
+  const [total, rejected] = await Promise.all([db.outbox.count(), db.outbox.where("rejected").above("").count()]);
+  return planProgress(total - rejected);
+}
+
+/** Aviso con la opción de descartar; sin descartar, se reintenta solo en cada sincronización. */
+export function notifyRejected(n: number) {
+  toast.error(n === 1 ? "1 registro no se pudo sincronizar" : `${n} registros no se pudieron sincronizar`, {
+    duration: 8000,
+    action: { label: "Descartar", onClick: () => void discardRejected() },
+  });
+}
+
+/** Descarta lo que el servidor rechazó: se saca de la cola y del dispositivo (no se reintenta más). */
+export async function discardRejected() {
+  const rows = await db.outbox.where("rejected").above("").toArray();
+  const ids = [...new Set(rows.filter((r) => r.kind === "entry").map((r) => r.id))];
+  await withRemote(async () => {
+    await db.entries.bulkDelete(ids);
+  });
+  await db.outbox.bulkDelete(rows.map((r) => r.seq!));
 }
