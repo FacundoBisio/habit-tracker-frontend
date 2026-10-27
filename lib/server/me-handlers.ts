@@ -8,6 +8,8 @@ export interface MeDeps {
   repo: Repo;
   /** Resuelve el usuario de la sesión (JWT de Supabase en `Authorization: Bearer`). */
   getUserId: (req: Request) => Promise<string | null>;
+  /** Validación contra Supabase Auth (con red) para operaciones sensibles; si falta se usa getUserId. */
+  getVerifiedUserId?: (req: Request) => Promise<string | null>;
   now: () => Date;
   /** Borra el usuario de Supabase Auth (con la service role key, solo en el servidor). */
   deleteAuthUser?: (userId: string) => Promise<void>;
@@ -38,8 +40,8 @@ const settingsPatch = z
 const unauthorized = () => Response.json({ ok: false, error: "No autenticado" }, { status: 401 });
 
 export function createMeHandlers(deps: MeDeps) {
-  async function withUser(req: Request, fn: (userId: string) => Promise<Response>) {
-    const userId = await deps.getUserId(req);
+  async function withUser(req: Request, fn: (userId: string) => Promise<Response>, strict = false) {
+    const userId = await (strict && deps.getVerifiedUserId ? deps.getVerifiedUserId(req) : deps.getUserId(req));
     return userId ? fn(userId) : unauthorized();
   }
 
@@ -122,7 +124,7 @@ export function createMeHandlers(deps: MeDeps) {
           return Response.json({ ok: false, error: "No se pudo terminar de eliminar la cuenta", retry: true }, { status: 500 });
         }
         return Response.json({ ok: true });
-      }),
+      }, true),
 
     unlinkTelegram: (req: Request) =>
       withUser(req, async (userId) => {

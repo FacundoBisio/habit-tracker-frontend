@@ -63,3 +63,19 @@ describe("/api/me", () => {
     expect(ok).toMatchObject({ reminderTime: "20:30", remindersEnabled: true });
   });
 });
+
+describe("eliminar cuenta usa la validación estricta", () => {
+  it("si Supabase Auth no confirma al usuario, no borra nada aunque el JWT local sea válido", async () => {
+    const repo = createMemoryRepo();
+    await repo.updateSettings("u1", { timezone: "UTC" });
+    const h = createMeHandlers({
+      repo,
+      getUserId: async () => "u1",
+      getVerifiedUserId: async () => null,
+      now: () => new Date("2026-10-27T12:00:00Z"),
+    });
+    const res = await h.deleteAccount(new Request("http://x/api/me", { method: "DELETE", body: JSON.stringify({ confirm: "ELIMINAR" }) }));
+    expect(res.status).toBe(401);
+    expect((await repo.getSettings("u1")).timezone).toBe("UTC");
+  });
+});
