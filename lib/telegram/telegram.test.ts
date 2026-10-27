@@ -126,6 +126,36 @@ describe("registro con confirmación", () => {
     expect(s.last().text).toContain("deshecho");
   });
 
+  it("reintento del webhook (mismo update_id) en un toque de teclado no duplica", async () => {
+    const update: TelegramUpdate = { update_id: 4242, message: { message_id: 1, chat: { id: CHAT }, text: "Agua" } };
+    await handleUpdate(update, s.deps);
+    await handleUpdate(update, s.deps);
+    expect(await s.repo.listEntries(USER)).toHaveLength(1);
+    // Otro update con el mismo texto sí es un registro nuevo.
+    await handleUpdate({ ...update, update_id: 4243 }, s.deps);
+    expect(await s.repo.listEntries(USER)).toHaveLength(2);
+  });
+
+  it("reintento del webhook de un texto libre: confirmar ambas pendientes registra una sola vez", async () => {
+    const update: TelegramUpdate = { update_id: 77, message: { message_id: 1, chat: { id: CHAT }, text: "agua 3" } };
+    await handleUpdate(update, s.deps);
+    const first = s.button("✅");
+    await handleUpdate(update, s.deps);
+    const second = s.button("✅");
+    expect(second).not.toBe(first);
+    await s.press(first);
+    await s.press(second);
+    expect(await s.repo.listEntries(USER)).toHaveLength(1);
+  });
+
+  it("reintento del mismo callback de Confirmar no duplica", async () => {
+    await s.say("agua 3");
+    const cb: TelegramUpdate = { update_id: 90, callback_query: { id: "cb", data: s.button("✅"), message: { message_id: 9, chat: { id: CHAT } } } };
+    await handleUpdate(cb, s.deps);
+    await handleUpdate(cb, s.deps);
+    expect(await s.repo.listEntries(USER)).toHaveLength(1);
+  });
+
   it("completar un objetivo avisa en el resultado y /deshacer lo reabre", async () => {
     const parser: NLParser = {
       name: "fake-llm",
