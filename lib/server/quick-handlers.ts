@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { addDays, toLocalDate } from "@/lib/domain/dates";
 import { resolveHabit } from "@/lib/domain/match";
-import { resolveItems, type NLParser } from "@/lib/nl/types";
+import { needsConfirmation, resolveItems, type NLParser } from "@/lib/nl/types";
 import type { Repo, ServerHabit } from "./repo";
 import { deterministicUuid, hashToken } from "./security";
 import { fmtNum, impactSummary, refreshGoals } from "./service";
@@ -30,6 +30,8 @@ const ingestBody = z.object({
   text: z.string().min(1).max(1000),
   confirm: z.boolean().optional(),
   client_id: uuid.optional(),
+  /** Obligatorio para registrar lotes de más de 5 ítems: lo devuelve la vista previa. */
+  confirm_token: z.string().max(64).optional(),
 });
 
 /** JSON siempre; texto plano con `?format=text` o `Accept: text/plain` (los Atajos lo muestran directo). */
@@ -168,7 +170,7 @@ export function createQuickHandlers(deps: QuickDeps) {
       if (auth instanceof Response) return auth;
       const body = await readJson(req, ingestBody);
       if (body instanceof Response) return body;
-      const { text, confirm, client_id } = body.data;
+      const { text, confirm, client_id, confirm_token } = body.data;
 
       const now = deps.now();
       const settings = await deps.repo.getSettings(auth.userId);
@@ -193,11 +195,28 @@ export function createQuickHandlers(deps: QuickDeps) {
         return respond(req, 200, ["No pude registrar nada.", ...unmatchedLines].join("\n"), { understood, unmatched, registered: false });
       }
 
+      // Lote grande (> CONFIRM_ABOVE_ITEMS): `confirm: true` no alcanza; hay que devolver el
+      // `confirm_token` de la vista previa, atado a exactamente lo que se mostró.
+      const big = needsConfirmation(resolved);
+      const expectedToken = big ? deterministicUuid(`${auth.userId}|confirm|${text}|${JSON.stringify(understood)}`) : undefined;
+      const tokenData = big ? { needs_confirmation: true, confirm_token: expectedToken } : {};
+
       if (!confirm) {
         return respond(req, 200, ["Entendí:", ...resolved.map(describe), ...unmatchedLines].join("\n"), {
           understood,
           unmatched,
           registered: false,
+          ...tokenData,
+        });
+      }
+
+      if (big && confirm_token !== expectedToken) {
+        const head = `Entendí ${resolved.length} registros; son muchos, así que necesito que lo confirmes (confirm_token).`;
+        return respond(req, 200, [head, ...resolved.map(describe), ...unmatchedLines].join("\n"), {
+          understood,
+          unmatched,
+          registered: false,
+          ...tokenData,
         });
       }
 

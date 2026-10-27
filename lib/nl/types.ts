@@ -23,13 +23,23 @@ export interface NLParser {
   parse(text: string, ctx: ParseContext): Promise<ParsedItem[]>;
 }
 
+/** El tope de cantidad (MAX_AMOUNT) se aplica al normalizar: un ítem fuera de rango se descarta sin tirar el resto. */
 export const parsedItemSchema = z.object({
   habit: z.string().min(1),
-  amount: z.number().positive().max(100_000).default(1),
+  amount: z.number().positive().default(1),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   note: z.string().optional().nullable(),
 });
 export const parsedResponseSchema = z.object({ items: z.array(parsedItemSchema) });
+
+/** Por encima de esta cantidad de ítems nunca se registra sin una confirmación explícita. */
+export const CONFIRM_ABOVE_ITEMS = 5;
+
+/**
+ * Un lote grande es la señal típica de un prompt manipulado (o de un modelo que alucina):
+ * con más de CONFIRM_ABOVE_ITEMS ítems el que llama SIEMPRE pide confirmación.
+ */
+export const needsConfirmation = (items: readonly unknown[]) => items.length > CONFIRM_ABOVE_ITEMS;
 
 export interface ResolvedItem {
   habit: ServerHabit;

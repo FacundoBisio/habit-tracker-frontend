@@ -46,6 +46,7 @@ Todas las rutas requieren `Authorization: Bearer <token>`. Agregá `?format=text
 3. **Mostrar alerta**: título «¿Registro esto?», mensaje = resultado de la acción anterior (muestra «Entendí: …»). Dejá los botones **Cancelar** / **OK**; si cancelás el Atajo se detiene.
 4. **Obtener contenido de URL**: igual que el paso 2 pero con `confirm` = `Sí` y un campo **Texto** `client_id` con un UUID nuevo por ejecución (**recomendado**). Una forma sin apps extra: al principio del Atajo, **Número aleatorio** entre `100000000000` y `999999999999` → `Azar`, y una acción **Texto** `{Fecha actual con formato personalizado yyyyMMdd}-{Fecha actual con formato HHmm}-4{Fecha actual con formato SSS}-8000-{Azar}` → variable `IdRegistro`. Con el mismo `client_id` un reintento de red **no duplica**; dos ejecuciones distintas sí registran dos veces.
    Sin `client_id` el servidor solo descarta reintentos inmediatos: el mismo texto dentro del mismo minuto cuenta una vez; repetido más tarde (aunque sea el mismo día) se registra de nuevo.
+   Lotes grandes: si el texto se entiende como **más de 5 registros**, `confirm: true` solo no alcanza (protección contra respuestas raras del modelo). La vista previa del paso 2 en JSON (sin `?format=text`) trae `confirm_token`; pasalo en el paso 4 para registrar exactamente lo que viste. Sin él, el servidor responde de nuevo «Entendí N registros…» y no escribe nada.
 5. **Mostrar resultado**.
 6. Nombre del Atajo: **Contale a mi tracker**. Decí «Oye Siri, contale a mi tracker».
 

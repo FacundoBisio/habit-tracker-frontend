@@ -156,6 +156,17 @@ describe("registro con confirmación", () => {
     expect(await s.repo.listEntries(USER)).toHaveLength(1);
   });
 
+  it("un lote grande del parser (> 5 ítems) nunca se registra sin Confirmar", async () => {
+    const parser: NLParser = {
+      name: "fake-llm",
+      parse: async (_t, c) => Array.from({ length: 8 }, () => ({ habitId: c.habits[0].id, amount: 1, localDate: "2026-03-10" })),
+    };
+    const t = await setup(parser);
+    await t.say("cualquier cosa");
+    expect(await t.repo.listEntries(USER)).toHaveLength(0);
+    expect(t.buttons().some((b) => b.text.startsWith("✅"))).toBe(true);
+  });
+
   it("completar un objetivo avisa en el resultado y /deshacer lo reabre", async () => {
     const parser: NLParser = {
       name: "fake-llm",

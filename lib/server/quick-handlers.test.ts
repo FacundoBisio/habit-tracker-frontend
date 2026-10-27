@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { rulesParser } from "@/lib/nl";
+import { rulesParser, type NLParser } from "@/lib/nl";
 import { createMemoryRepo } from "./memory-repo";
 import { createQuickHandlers } from "./quick-handlers";
 import type { ServerGoal } from "./repo";
@@ -194,6 +194,50 @@ describe("POST /api/quick/ingest", () => {
     const json = await (await handlers.ingest(req("ingest", token, { text: "agua 1", confirm: true }))).json();
     expect(json.text).toContain("ya estaba registrado");
     expect(await repo.listEntries(USER)).toHaveLength(1);
+  });
+
+  it("más de 5 ítems: confirm=true no alcanza, hace falta el confirm_token de la vista previa", async () => {
+    const { repo, token, water } = await setup();
+    const n = { count: 6 };
+    const parser: NLParser = {
+      name: "fake-llm",
+      parse: async () => Array.from({ length: n.count }, (_, i) => ({ habitId: water.id, amount: 1, localDate: `2026-03-0${i + 1}` })),
+    };
+    const handlers = createQuickHandlers({ repo, parser, limiter: createRateLimiter(100, 60_000), now: () => NOW });
+
+    const first = await (await handlers.ingest(req("ingest", token, { text: "muchos", confirm: true }))).json();
+    expect(first.registered).toBe(false);
+    expect(first.needs_confirmation).toBe(true);
+    expect(first.confirm_token).toEqual(expect.any(String));
+    expect(await repo.listEntries(USER)).toHaveLength(0);
+
+    const bad = await (await handlers.ingest(req("ingest", token, { text: "muchos", confirm: true, confirm_token: "nope" }))).json();
+    expect(bad.registered).toBe(false);
+
+    // La vista previa (confirm=false) también trae el token.
+    const preview = await (await handlers.ingest(req("ingest", token, { text: "muchos", confirm: false }))).json();
+    expect(preview.confirm_token).toBe(first.confirm_token);
+
+    const ok = await (await handlers.ingest(req("ingest", token, { text: "muchos", confirm: true, confirm_token: first.confirm_token }))).json();
+    expect(ok.registered).toBe(true);
+    expect(await repo.listEntries(USER)).toHaveLength(6);
+
+    // Si en el reintento el parser entiende otra cosa, el token viejo ya no sirve.
+    n.count = 7;
+    const changed = await (await handlers.ingest(req("ingest", token, { text: "muchos", confirm: true, confirm_token: first.confirm_token }))).json();
+    expect(changed.registered).toBe(false);
+  });
+
+  it("5 ítems o menos registran directo con confirm=true", async () => {
+    const { repo, token, water } = await setup();
+    const parser: NLParser = {
+      name: "fake-llm",
+      parse: async () => Array.from({ length: 5 }, (_, i) => ({ habitId: water.id, amount: 1, localDate: `2026-03-0${i + 1}` })),
+    };
+    const handlers = createQuickHandlers({ repo, parser, limiter: createRateLimiter(100, 60_000), now: () => NOW });
+    const json = await (await handlers.ingest(req("ingest", token, { text: "cinco", confirm: true }))).json();
+    expect(json.registered).toBe(true);
+    expect(await repo.listEntries(USER)).toHaveLength(5);
   });
 
   it("informa hábitos que no matchean", async () => {
