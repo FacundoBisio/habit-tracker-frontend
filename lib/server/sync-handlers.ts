@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { nameSchema } from "@/lib/domain/name";
 import type { MeDeps } from "./me-handlers";
 import type { ServerEntry, ServerGoal, ServerHabit } from "./repo";
 import { MAX_AMOUNT, isValidTimeZone } from "./validate";
@@ -61,7 +62,12 @@ export const syncPush = z.object({
     })
     .default({ habits: [], entries: [], goals: [] }),
   settings: z
-    .object({ timezone: z.string().max(64).refine(isValidTimeZone, "zona horaria inválida"), weekStartsOn: z.union([z.literal(0), z.literal(1), z.literal(6)]) })
+    .object({
+      timezone: z.string().max(64).refine(isValidTimeZone, "zona horaria inválida"),
+      weekStartsOn: z.union([z.literal(0), z.literal(1), z.literal(6)]),
+      displayName: nameSchema.optional(),
+      displayNameUpdatedAt: z.number().int().nonnegative().optional(),
+    })
     .optional(),
 });
 
@@ -92,7 +98,12 @@ export function createSyncHandlers(deps: MeDeps) {
         habits,
         entries: entries.map(toWireEntry),
         goals,
-        settings: { timezone: settings.timezone, weekStartsOn: settings.weekStartsOn },
+        settings: {
+          timezone: settings.timezone,
+          weekStartsOn: settings.weekStartsOn,
+          displayName: settings.displayName,
+          displayNameUpdatedAt: settings.displayNameUpdatedAt,
+        },
       });
     },
 
@@ -128,7 +139,13 @@ export function createSyncHandlers(deps: MeDeps) {
           skipped++; // p. ej. el hábito ya no existe (FK): se descarta sin frenar el resto
         }
       }
-      if (settings) await deps.repo.updateSettings(userId, settings);
+      if (settings) {
+        const { displayName, displayNameUpdatedAt, ...rest } = settings;
+        // El nombre: gana el cambio más nuevo (dos dispositivos pueden haberlo cambiado)
+        const current = await deps.repo.getSettings(userId);
+        const newer = displayName && (displayNameUpdatedAt ?? 0) > (current.displayNameUpdatedAt ?? -1);
+        await deps.repo.updateSettings(userId, newer ? { ...rest, displayName, displayNameUpdatedAt: displayNameUpdatedAt ?? deps.now().getTime() } : rest);
+      }
       return Response.json({ ok: true, skipped });
     },
   };

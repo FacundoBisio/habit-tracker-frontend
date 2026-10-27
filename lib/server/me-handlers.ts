@@ -1,6 +1,7 @@
 import { z } from "zod";
+import { nameSchema } from "@/lib/domain/name";
 import type { Repo } from "./repo";
-import { generateLinkCode, generateToken } from "./security";
+import { createRateLimiter, generateLinkCode, generateToken } from "./security";
 import { isValidTimeZone } from "./validate";
 
 export interface MeDeps {
@@ -8,7 +9,16 @@ export interface MeDeps {
   /** Resuelve el usuario de la sesión (JWT de Supabase en `Authorization: Bearer`). */
   getUserId: (req: Request) => Promise<string | null>;
   now: () => Date;
+  /** Borra el usuario de Supabase Auth (con la service role key, solo en el servidor). */
+  deleteAuthUser?: (userId: string) => Promise<void>;
+  /** Mensaje por el bot (best effort: si falla no frena nada). */
+  sendTelegram?: (chatId: string, text: string) => Promise<void>;
+  /** Límite de intentos de borrado por usuario. */
+  deleteLimiter?: ReturnType<typeof createRateLimiter>;
 }
+
+export const DELETE_CONFIRM = "ELIMINAR";
+const GOODBYE = "Tu cuenta de SuperHábitos se eliminó junto con todos tus datos. ¡Gracias por usarla!";
 
 const MAX_ACTIVE_TOKENS = 10;
 const LINK_CODE_TTL_MS = 15 * 60_000;
@@ -20,6 +30,7 @@ const settingsPatch = z
     weekStartsOn: z.union([z.literal(0), z.literal(1), z.literal(6)]),
     reminderTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "formato HH:MM"),
     remindersEnabled: z.boolean(),
+    displayName: nameSchema,
   })
   .partial()
   .strict();
@@ -85,8 +96,38 @@ export function createMeHandlers(deps: MeDeps) {
         if (!body.success) {
           return Response.json({ ok: false, error: body.error.issues.map((i) => i.message).join("; ") }, { status: 400 });
         }
-        await deps.repo.updateSettings(userId, body.data);
+        const patch = body.data.displayName !== undefined ? { ...body.data, displayNameUpdatedAt: deps.now().getTime() } : body.data;
+        await deps.repo.updateSettings(userId, patch);
         return Response.json(await deps.repo.getSettings(userId));
+      }),
+
+    /**
+     * Elimina la cuenta: primero los datos (idempotente) y después el usuario de Auth. Si falla Auth se responde
+     * `retry: true`; reintentar es seguro.
+     */
+    deleteAccount: (req: Request) =>
+      withUser(req, async (userId) => {
+        const body = z.object({ confirm: z.literal(DELETE_CONFIRM) }).safeParse(await req.json().catch(() => null));
+        if (!body.success) return Response.json({ ok: false, error: `Falta la confirmación "${DELETE_CONFIRM}"` }, { status: 400 });
+        const limit = deps.deleteLimiter?.(userId, deps.now().getTime());
+        if (limit && !limit.ok) {
+          return Response.json({ ok: false, error: "Demasiados intentos" }, { status: 429, headers: { "Retry-After": String(limit.retryAfterSec) } });
+        }
+        const { telegramChatId } = await deps.repo.getSettings(userId);
+        await deps.repo.deleteUserData(userId);
+        if (telegramChatId && deps.sendTelegram) await deps.sendTelegram(telegramChatId, GOODBYE).catch(() => {});
+        try {
+          await deps.deleteAuthUser?.(userId);
+        } catch {
+          return Response.json({ ok: false, error: "No se pudo terminar de eliminar la cuenta", retry: true }, { status: 500 });
+        }
+        return Response.json({ ok: true });
+      }),
+
+    unlinkTelegram: (req: Request) =>
+      withUser(req, async (userId) => {
+        await deps.repo.unlinkTelegram(userId);
+        return Response.json({ ok: true });
       }),
   };
 }

@@ -37,6 +37,7 @@ export function BottomNav() {
                 href={href}
                 aria-current={active ? "page" : undefined}
                 aria-label={label}
+                data-tour={`nav-${label.toLowerCase()}`}
                 className={cn(
                   "relative flex h-12 items-center justify-center gap-2 rounded-full text-sm font-semibold transition-colors duration-500",
                   active ? "px-4 text-accent-fg" : "w-12 text-[var(--nav-fg)] hover:text-fg",

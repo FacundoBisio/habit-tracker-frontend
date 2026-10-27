@@ -39,7 +39,7 @@ Alcance: todo el repo (dominio, PWA, API de Atajos, bot, sincronización, seguri
 | Sin Content-Security-Policy | Media | El script de tema es inline: requiere CSP con nonce. Conviene agregarla antes de abrir la app a terceros |
 | `drizzle-repo.ts` y `rls.sql` **no se probaron contra un Postgres real** | Media | Es el mayor punto ciego del proyecto (ver Pruebas) |
 | Tokens de API sin vencimiento ni alcance (todo o nada) | Baja | Aceptable para uso personal |
-| No hay "desvincular Telegram" ni borrar cuenta | Baja | Agregar antes de tener más usuarios |
+| ~~No hay "desvincular Telegram" ni borrar cuenta~~ | Cerrado | `DELETE /api/me` (datos en una transacción + usuario de Auth con `SUPABASE_SERVICE_ROLE_KEY`, idempotente y con límite de intentos) y `DELETE /api/me/telegram`; Ajustes → Zona peligrosa |
 | Datos locales (IndexedDB) sin cifrar | Baja | Normal en una PWA; el dispositivo ya está protegido por el sistema |
 
 ## Corrección funcional
@@ -47,7 +47,7 @@ Alcance: todo el repo (dominio, PWA, API de Atajos, bot, sincronización, seguri
 - **Sincronización:** el plan de push/pull es puro y está testeado. El motor del cliente (IndexedDB + red) solo se verificó manualmente: hay un riesgo residual en escenarios con dos dispositivos editando a la vez (gana el último push; no hay `updated_at`).
 - **Entradas inmutables:** corregir una cantidad borra y recrea registros (así la sincronización solo ve altas y bajas). Probado por E2E.
 - **Recordatorios:** se envían solo si el cron cae justo en el minuto configurado. Si se pierde ese minuto, ese día no llega.
-- **Nombre del usuario:** vive solo en el dispositivo; en un dispositivo nuevo la bienvenida vuelve a pedirlo.
+- **Nombre del usuario:** se sincroniza con la cuenta (`user_settings.display_name`, gana el cambio más nuevo). Como el login está en Ajustes, en un dispositivo nuevo la bienvenida igual lo pide; al iniciar sesión, si la cuenta tiene otro nombre, un aviso ofrece usarlo.
 - **Bug encontrado por la auditoría de Lighthouse:** el reloj del personaje podía retroceder (el tiempo de `requestAnimationFrame` llega a veces antes que `performance.now()`), el parpadeo daba un párpado de altura negativa y Chrome registraba `<rect> height: negative value`. Corregido en tres capas (dt nunca negativo, `blink` con guarda, rangos acotados al dibujar) y con prueba de regresión.
 - **Bug encontrado y corregido durante el desarrollo:** `filter`/`transform` persistentes en la transición de página hacían que los popups se posicionaran respecto a la columna y no a la pantalla. Ahora la transición solo anima opacidad/desplazamiento y los popups van en un portal sobre `<body>`.
 

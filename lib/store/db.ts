@@ -45,6 +45,10 @@ export interface Settings {
   weekStartsOn: WeekStart;
   /** Cómo te llama la app; vacío = todavía no hizo la bienvenida. */
   name?: string;
+  /** Cuándo se cambió el nombre (ms): con varios dispositivos gana el cambio más nuevo. */
+  nameUpdatedAt?: number;
+  /** Cuándo terminó (o se salteó) el recorrido guiado: no vuelve a arrancar solo. */
+  tourDoneAt?: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {

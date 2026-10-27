@@ -138,6 +138,12 @@ function Connected({ email, supabase }: { email: string; supabase: SupabaseClien
     const res = await apiFetch("/api/me/link-code", { method: "POST" });
     if (res.ok) setLinkCode((await res.json()).code);
   }
+  async function unlinkTelegram() {
+    const res = await apiFetch("/api/me/telegram", { method: "DELETE" });
+    if (!res.ok) return toast.error("No se pudo desvincular Telegram");
+    toast.success("Telegram desvinculado");
+    load();
+  }
   async function patch(p: Partial<RemoteSettings>) {
     const res = await apiFetch("/api/me/settings", { method: "PATCH", body: JSON.stringify(p) });
     if (res.ok) setSettings(await res.json());
@@ -202,7 +208,10 @@ function Connected({ email, supabase }: { email: string; supabase: SupabaseClien
       <section className="space-y-2">
         <h3 className="text-sm font-medium">Telegram</h3>
         {settings?.telegramChatId ? (
-          <p className="flex items-center gap-1.5 text-sm text-muted"><Check className="size-4" />Vinculado. Escribile al bot en lenguaje natural.</p>
+          <>
+            <p className="flex items-center gap-1.5 text-sm text-muted"><Check className="size-4" />Vinculado. Escribile al bot en lenguaje natural.</p>
+            <button className={cn(ghostBtn, "w-full")} onClick={unlinkTelegram}>Desvincular Telegram</button>
+          </>
         ) : (
           <>
             <p className="text-xs text-muted">

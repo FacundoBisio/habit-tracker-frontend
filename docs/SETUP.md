@@ -8,6 +8,7 @@ Todo el código de las Fases 1–4 está hecho y testeado con repositorios en me
 |---|---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Settings → API → Project URL | `.env.local` **y** Vercel | Login, sincronización |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Settings → API → `anon` `public` | `.env.local` **y** Vercel | Login (valida la sesión en el servidor) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API → `service_role` (**secreta**: nunca con prefijo `NEXT_PUBLIC_`) | Solo Vercel (y `.env.local` si probás local) | Eliminar la cuenta desde Ajustes (borra el usuario de Supabase Auth) |
 | `DATABASE_URL` | Supabase → Connect → **Transaction pooler** (puerto 6543) | `.env.local` **y** Vercel | Toda la API (`/api/quick`, `/api/me`, `/api/sync`, bot) y las migraciones |
 | `TELEGRAM_BOT_TOKEN` | @BotFather → `/newbot` | Vercel (y `.env.local` para el script) | Bot |
 | `TELEGRAM_WEBHOOK_SECRET` | Lo inventás vos (string largo aleatorio, `A-Z a-z 0-9 _ -`) | Vercel (y `.env.local`) | Autenticar el webhook |
@@ -26,7 +27,7 @@ Sin las claves del LLM el bot y los Atajos siguen funcionando con el **parser po
 1. Crear proyecto (plan Free). Guardar la contraseña de la base.
 2. **Authentication → Providers → Email**: activado. En **Authentication → Email Templates → Magic Link** reemplazá el cuerpo para que muestre el código: `Tu código es {{ .Token }}`.
 3. Copiar las tres variables de la tabla.
-4. En tu máquina: copiá `.env.example` a `.env.local`, completá `DATABASE_URL` y corré `npm run db:migrate`.
+4. En tu máquina: copiá `.env.example` a `.env.local`, completá `DATABASE_URL` y corré `npm run db:migrate` (incluye `0003`: el nombre sincronizado en `user_settings.display_name`).
 5. En el **SQL Editor** de Supabase pegá y ejecutá `lib/db/rls.sql` (activa RLS en todas las tablas).
 6. **Database → Extensions**: habilitá `pg_cron` y `pg_net`.
 

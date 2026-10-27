@@ -41,6 +41,8 @@ const toSettings = (r: SettingsRow): ServerSettings => ({
   telegramChatId: r.telegramChatId ?? undefined,
   reminderTime: r.reminderTime,
   remindersEnabled: r.remindersEnabled,
+  displayName: r.displayName ?? undefined,
+  displayNameUpdatedAt: r.displayNameUpdatedAt?.getTime(),
 });
 
 /** Implementación de producción. Toda consulta filtra por `user_id` (la conexión bypassa RLS). */
@@ -168,7 +170,13 @@ export function createDrizzleRepo(): Repo {
     },
 
     async updateSettings(userId, patch) {
-      const values = { ...patch, telegramChatId: patch.telegramChatId ?? undefined, updatedAt: new Date() };
+      const { displayNameUpdatedAt, ...rest } = patch;
+      const values = {
+        ...rest,
+        telegramChatId: patch.telegramChatId ?? undefined,
+        ...(displayNameUpdatedAt !== undefined ? { displayNameUpdatedAt: new Date(displayNameUpdatedAt) } : {}),
+        updatedAt: new Date(),
+      };
       await db
         .insert(t.userSettings)
         .values({ userId, ...values })
@@ -246,6 +254,27 @@ export function createDrizzleRepo(): Repo {
         timezone: r.timezone,
         reminderTime: r.reminderTime,
       }));
+    },
+
+    async deleteUserData(userId) {
+      // Las tablas no tienen FK a auth.users: se borra explícitamente todo lo que tenga user_id, en una transacción.
+      await db.transaction(async (tx) => {
+        await tx.delete(t.entries).where(eq(t.entries.userId, userId));
+        await tx.delete(t.goalLinks).where(eq(t.goalLinks.userId, userId));
+        await tx.delete(t.goals).where(eq(t.goals.userId, userId));
+        await tx.delete(t.habits).where(eq(t.habits.userId, userId));
+        await tx.delete(t.userSettings).where(eq(t.userSettings.userId, userId));
+        await tx.delete(t.apiTokens).where(eq(t.apiTokens.userId, userId));
+        await tx.delete(t.linkCodes).where(eq(t.linkCodes.userId, userId));
+        await tx.delete(t.botPending).where(eq(t.botPending.userId, userId));
+      });
+    },
+
+    async unlinkTelegram(userId) {
+      await db
+        .update(t.userSettings)
+        .set({ telegramChatId: null, remindersEnabled: false, updatedAt: new Date() })
+        .where(eq(t.userSettings.userId, userId));
     },
 
     async savePending(userId, chatId, payload) {

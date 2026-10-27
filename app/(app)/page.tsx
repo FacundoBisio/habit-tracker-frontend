@@ -113,10 +113,18 @@ export default function TodayPage() {
             )}
           </p>
         </div>
-        {total > 0 && <Ring done={done} total={total} />}
+        {total > 0 && (
+          <div data-tour="anillo">
+            <Ring done={done} total={total} />
+          </div>
+        )}
       </header>
 
-      {ready && hasHabits && <WeekStrip days={strip} selected={day} onSelect={(d) => setPicked(d === today ? null : d)} />}
+      {ready && hasHabits && (
+        <div data-tour="semana">
+          <WeekStrip days={strip} selected={day} onSelect={(d) => setPicked(d === today ? null : d)} />
+        </div>
+      )}
 
       {ready && <Mascot message={message} />}
 
@@ -131,13 +139,13 @@ export default function TodayPage() {
           <span className="chip mx-auto grid size-16 place-items-center rounded-3xl"><Sprout className="size-8" strokeWidth={1.8} /></span>
           <h2 className="font-display mt-4 text-xl font-semibold tracking-tight">Empezá con tu primer hábito</h2>
           <p className="mt-1.5 mb-6 text-sm text-muted">Un toque por día alcanza. Después sumás objetivos.</p>
-          <button className={primaryBtn} onClick={() => setFormOpen(true)}>Crear hábito</button>
+          <button className={primaryBtn} onClick={() => setFormOpen(true)} data-tour="crear-habito">Crear hábito</button>
         </div>
       ) : (
         <>
           <motion.ul key={day} variants={list} initial="hidden" animate="show" className="space-y-3">
-            {rows.map((row) => (
-              <motion.li key={`${day}:${row.habit.id}`} variants={item} layout>
+            {rows.map((row, i) => (
+              <motion.li key={`${day}:${row.habit.id}`} variants={item} layout data-tour={i === 0 ? "fila-habito" : undefined}>
                 <HabitRow row={row} onToggle={() => toggle(row)} onAdjust={(d) => adjust(row, d)} onOpen={() => {
                     playActivity(activityFor(row.habit.emoji));
                     setEditing(row.habit);

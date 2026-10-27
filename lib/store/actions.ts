@@ -14,6 +14,11 @@ export async function saveSettings(patch: Partial<Omit<Settings, "id">>) {
   await db.settings.put({ ...(await getSettings()), ...patch });
 }
 
+/** Cambia el nombre (ya normalizado) y anota cuándo, para sincronizarlo entre dispositivos. */
+export async function saveName(name: string, at = Date.now()) {
+  await saveSettings({ name, nameUpdatedAt: at });
+}
+
 export async function addHabit(input: Omit<Habit, "id" | "archived" | "sortOrder" | "aliases"> & { aliases?: string[] }) {
   const sortOrder = await db.habits.count();
   const habit: Habit = { ...input, aliases: input.aliases ?? [], id: uid(), archived: false, sortOrder };

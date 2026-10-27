@@ -43,11 +43,16 @@ async function skipIntro(page: Page) {
   await expect(nameInput(page)).toBeVisible();
 }
 
+const skipTourBtn = (page: Page) => page.getByRole("button", { name: "Saltar recorrido" });
+
 async function completeWelcome(page: Page, name = NAME) {
   await skipIntro(page);
   await nameInput(page).fill(name);
   await page.getByRole("button", { name: "Empezar" }).click();
   await expect(greeting(page)).toHaveText(`Hola, ${name}`);
+  // Después de la bienvenida arranca el recorrido guiado: la mayoría de las pruebas lo saltea
+  await skipTourBtn(page).click();
+  await expect(skipTourBtn(page)).toHaveCount(0);
 }
 
 test.beforeEach(async ({ page }) => {
@@ -237,6 +242,122 @@ test("bienvenida: el personaje se presenta, pide el nombre y pasa a la app", asy
   // Recargar no vuelve a pedir el nombre
   await page.reload();
   await expect(greeting(page)).toHaveText("Hola, Lu");
+});
+
+test("perfil: cambiar el nombre valida, avisa y cambia el saludo de Hoy", async ({ page }) => {
+  await page.getByRole("link", { name: /Ajustes/ }).click();
+  await expect(page.getByText(`Te llamo ${NAME}`)).toBeVisible();
+  await page.getByRole("button", { name: "Cambiar nombre" }).click();
+  const input = page.getByLabel("¿Cómo te llamo?");
+  await input.fill("   ");
+  await expect(page.getByText("Escribí cómo querés que te llame")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Guardar" })).toBeDisabled();
+  await input.fill("  Facundo   Bisio ");
+  await expect(page.getByText("13/30")).toBeVisible();
+  await page.getByRole("button", { name: "Guardar" }).click();
+  await expect(page.getByText("Listo, ahora te llamo Facundo Bisio")).toBeVisible();
+  await expect(page.getByText("Te llamo Facundo Bisio", { exact: true })).toBeVisible();
+  await page.getByRole("link", { name: /Hoy/ }).click();
+  await expect(greeting(page)).toHaveText("Hola, Facundo Bisio");
+});
+
+test("zona peligrosa: sin sesión borra todos los datos del dispositivo y vuelve a la presentación", async ({ page }) => {
+  await createHabit(page, { name: "Agua" });
+  await page.getByRole("link", { name: /Ajustes/ }).click();
+  await page.getByRole("button", { name: "Borrar todos mis datos de este dispositivo" }).click();
+  const dialog = page.getByRole("dialog", { name: "Borrar datos" });
+  await expect(dialog.getByRole("button", { name: "Exportar antes" })).toBeVisible();
+  const confirm = dialog.getByRole("button", { name: "Borrar todo" });
+  await expect(confirm).toBeDisabled();
+  await dialog.getByLabel("Escribí ELIMINAR para confirmar").fill("eliminar");
+  await expect(confirm).toBeEnabled();
+  await confirm.click();
+  // La app vuelve a cero: presentación y después el nombre, sin hábitos
+  await expect(page.getByRole("button", { name: "Saltar" })).toBeVisible({ timeout: 15_000 });
+  await page.getByRole("button", { name: "Saltar" }).click();
+  await nameInput(page).fill("Otra");
+  await page.getByRole("button", { name: "Empezar" }).click();
+  await expect(greeting(page)).toHaveText("Hola, Otra");
+  await expect(page.getByRole("button", { name: /^Agua[.,]/ })).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem("mascot-mode"))).not.toBe("3d");
+});
+
+test("ayuda: ver la presentación de nuevo no pide el nombre ni cambia nada y vuelve a Ajustes", async ({ page }) => {
+  await page.getByRole("link", { name: /Ajustes/ }).click();
+  await page.getByRole("button", { name: "Ver la presentación de nuevo" }).click();
+  await expect(page.getByRole("dialog", { name: "Presentación de SuperHábitos" })).toBeVisible();
+  await page.getByRole("button", { name: "Siguiente" }).click();
+  await expect(page.getByRole("button", { name: "Volver" })).toBeVisible();
+  await page.getByRole("button", { name: "Saltar" }).click();
+  await expect(page.getByRole("dialog", { name: "Presentación de SuperHábitos" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Ajustes" })).toBeVisible();
+  await expect(page.getByText(`Te llamo ${NAME}`)).toBeVisible();
+});
+
+test("recorrido guiado: arranca después de la bienvenida, espera el primer hábito, recorre y no vuelve solo", async ({ page }) => {
+  await freshDb(page);
+  await skipIntro(page);
+  await nameInput(page).fill(NAME);
+  await page.getByRole("button", { name: "Empezar" }).click();
+  const tour = page.getByRole("dialog", { name: "Recorrido guiado" });
+  await expect(tour).toContainText("Primero creá tu primer hábito");
+  await expect(tour.getByRole("button", { name: "Siguiente" })).toBeDisabled();
+
+  // Crear el hábito: el recorrido se esconde con el popup y sigue solo
+  await page.getByRole("button", { name: "Crear hábito" }).click();
+  await expect(tour).toHaveCount(0);
+  await page.getByLabel("Nombre").fill("Agua");
+  await page.getByRole("button", { name: "Guardar" }).click();
+  await expect(tour).toContainText("Tocá un hábito para marcarlo hecho");
+
+  const texts = ["Mantené presionado", "Este anillo", "Acá ves la semana", "En Objetivos", "En Ajustes"];
+  for (const t of texts) {
+    await tour.getByRole("button", { name: "Siguiente" }).click();
+    await expect(tour).toContainText(t);
+  }
+  await expect(tour.getByRole("button", { name: "Listo" })).toBeVisible();
+  await tour.getByRole("button", { name: "Atrás" }).click();
+  await expect(tour).toContainText("En Objetivos");
+  await tour.getByRole("button", { name: "Siguiente" }).click();
+  await tour.getByRole("button", { name: "Listo" }).click();
+  await expect(tour).toHaveCount(0);
+
+  // No vuelve a aparecer solo, pero se puede repetir desde Ajustes
+  await page.reload();
+  await expect(greeting(page)).toHaveText(`Hola, ${NAME}`);
+  await page.waitForTimeout(800);
+  await expect(tour).toHaveCount(0);
+  await page.getByRole("link", { name: /Ajustes/ }).click();
+  await page.getByRole("button", { name: "Repetir el recorrido" }).click();
+  await expect(tour).toContainText("Tocá un hábito para marcarlo hecho");
+  await page.keyboard.press("Escape");
+  await expect(tour).toHaveCount(0);
+});
+
+test("recorrido guiado en iPhone SE: la tarjeta no tapa lo señalado", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await createHabit(page, { name: "Agua" });
+  await page.getByRole("link", { name: /Ajustes/ }).click();
+  await page.getByRole("button", { name: "Repetir el recorrido" }).click();
+  const tour = page.getByRole("dialog", { name: "Recorrido guiado" });
+  for (let i = 0; i < 6; i++) {
+    await expect(tour).toBeVisible();
+    await page.waitForTimeout(700); // termina el scroll suave hasta lo señalado
+    const box = await tour.boundingBox();
+    const anchor = await page.evaluate(() => {
+      const text = document.querySelector('[aria-label="Recorrido guiado"] [aria-live="polite"]')?.textContent ?? "";
+      const map: Record<string, string> = { "Tocá": "fila-habito", "Mantené": "fila-habito", "Este anillo": "anillo", "Acá ves": "semana", "En Objetivos": "nav-objetivos", "En Ajustes": "nav-ajustes" };
+      const key = Object.keys(map).find((k) => text.startsWith(k))!;
+      const r = document.querySelector(`[data-tour="${map[key]}"]`)!.getBoundingClientRect();
+      return { top: r.top, bottom: r.bottom };
+    });
+    expect(box!.y >= anchor.bottom || box!.y + box!.height <= anchor.top).toBe(true);
+    expect(box!.y).toBeGreaterThanOrEqual(0);
+    expect(box!.y + box!.height).toBeLessThanOrEqual(667);
+    const next = tour.getByRole("button", { name: /Siguiente|Listo/ });
+    await next.click();
+  }
+  await expect(tour).toHaveCount(0);
 });
 
 test("las rachas largas se colorean: neutras hasta 9, naranja desde 10 y rojas desde 30", async ({ page }) => {

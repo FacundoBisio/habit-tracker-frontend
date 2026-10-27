@@ -6,6 +6,9 @@ import { toast } from "@/lib/notify";
 import { PageHeader } from "@/components/AppShell";
 import { AccountSection } from "@/components/AccountSection";
 import { Achievements } from "@/components/Achievements";
+import { DangerZone } from "@/components/DangerZone";
+import { HelpSection } from "@/components/HelpSection";
+import { ProfileSection } from "@/components/ProfileSection";
 import { HabitForm } from "@/components/HabitForm";
 import { ghostBtn, labelCls } from "@/components/Sheet";
 import { cn } from "@/lib/cn";
@@ -69,25 +72,15 @@ export default function SettingsPage() {
     <>
       <PageHeader title="Ajustes" />
       <div className="space-y-6">
+        <Group title="Perfil">
+          <ProfileSection />
+        </Group>
+
         <Group title="Logros">
           <Achievements />
         </Group>
 
         <Group title="Preferencias">
-          <Field label="Tu nombre" htmlFor="s-name">
-            <input
-              id="s-name"
-              key={settings.name ?? ""}
-              defaultValue={settings.name ?? ""}
-              maxLength={30}
-              autoComplete="given-name"
-              className="h-12 w-full rounded-xl border border-border bg-surface-2 px-3.5 outline-none transition focus:border-fg/40 focus:bg-surface-solid"
-              onBlur={(e) => {
-                const v = e.target.value.trim();
-                if (v && v !== settings.name) saveSettings({ name: v });
-              }}
-            />
-          </Field>
           <Field label="Zona horaria" htmlFor="s-tz">
             <select id="s-tz" className="h-12 w-full rounded-xl border border-border bg-bg px-3" value={settings.timezone} onChange={(e) => saveSettings({ timezone: e.target.value })}>
               {zones.map((z) => <option key={z}>{z}</option>)}
@@ -150,6 +143,10 @@ export default function SettingsPage() {
           </ul>
         </Group>
 
+        <Group title="Ayuda">
+          <HelpSection />
+        </Group>
+
         <Group title="Datos">
           <div className="grid grid-cols-2 gap-2">
             <button className={ghostBtn} onClick={doExport}><Download className="mr-2 size-4" />Exportar</button>
@@ -163,6 +160,10 @@ export default function SettingsPage() {
 
         <Group title="Cuenta, Atajos y Telegram">
           <AccountSection />
+        </Group>
+
+        <Group title="Zona peligrosa">
+          <DangerZone onExport={doExport} />
         </Group>
       </div>
       <HabitForm open={!!editing} habit={editing} onClose={() => setEditing(undefined)} />

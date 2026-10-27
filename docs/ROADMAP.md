@@ -40,7 +40,7 @@ Todo lo demás depende de usarlo de verdad unos días.
 3. Consultas de IndexedDB acotadas por fecha cuando haya miles de registros.
 4. E2E del motor de sincronización con un servidor simulado.
 5. Pruebas visuales de regresión (capturas por pantalla y tema).
-6. "Desvincular Telegram" y tokens con vencimiento.
+6. ~~"Desvincular Telegram"~~ (hecho) y tokens con vencimiento.
 
 ## Cómo seguir (propuesta de fases)
 | Fase | Objetivo | Contenido |

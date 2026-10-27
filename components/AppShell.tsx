@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { CloudOff } from "lucide-react";
 import { useEffect } from "react";
 import { mascot3dAllowed, preloadMascot } from "@/lib/mascot-engine-state";
+import { endIntroReplay, startTour, useOnboarding } from "@/lib/onboarding";
 import { useSessionFlag } from "@/lib/session-flag";
 import { useAchievementUnlocks } from "@/lib/store/achievements";
 import { useDaySummary } from "@/lib/store/day";
@@ -19,6 +20,7 @@ import { Welcome } from "./Welcome";
 // Cada uno se descarga solo cuando hace falta (el intro es para quien no tiene nombre; el splash, solo para quien sí).
 const Intro = dynamic(() => import("./Intro").then((m) => m.Intro), { ssr: false });
 const LaunchSplash = dynamic(() => import("./LaunchSplash").then((m) => m.LaunchSplash), { ssr: false });
+const Tour = dynamic(() => import("./Tour").then((m) => m.Tour), { ssr: false });
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const online = useOnline();
@@ -30,6 +32,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // La presentación con pantallazos va antes de pedir el nombre; un reload en la misma sesión salta directo al nombre.
   const [introDone, markIntroDone] = useSessionFlag("intro-done");
   const [, markSplashShown] = useSessionFlag("splash-shown", true);
+  const [tourPending] = useSessionFlag("tour-pending");
+  const { introReplay, tour } = useOnboarding();
   useAchievementUnlocks();
 
   // El 3D se prepara lo antes posible (descarga, parseo y shaders), para que ya esté cuando aparezca el personaje.
@@ -40,6 +44,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (welcome) markSplashShown();
   }, [welcome, markSplashShown]);
+  // El recorrido guiado arranca solo una vez, justo después de la bienvenida
+  useEffect(() => {
+    if (ready && settings.name && tourPending && !settings.tourDoneAt) startTour();
+  }, [ready, settings.name, settings.tourDoneAt, tourPending]);
 
   useEffect(() => {
     if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) {
@@ -73,6 +81,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </motion.div>
         )}
       </AnimatePresence>
+      <AnimatePresence>{introReplay && <Intro key="replay" mode="replay" onDone={endIntroReplay} />}</AnimatePresence>
+      {tour && !welcome && <Tour />}
       <ConfettiLayer />
       {ready && !!settings.name && <LaunchSplash />}
     </>

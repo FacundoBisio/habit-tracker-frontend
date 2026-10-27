@@ -2,7 +2,9 @@
 
 import { motion } from "framer-motion";
 import { useState } from "react";
-import { saveSettings } from "@/lib/store/actions";
+import { nameError, normalizeName } from "@/lib/domain/name";
+import { saveName } from "@/lib/store/actions";
+import { useSessionFlag } from "@/lib/session-flag";
 import { MascotFigure } from "./Mascot";
 import { inputCls, labelCls, primaryBtn } from "./Sheet";
 
@@ -13,13 +15,15 @@ const rise = { hidden: { opacity: 0, y: 18 }, show: { opacity: 1, y: 0, transiti
 export function Welcome() {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
-  const valid = name.trim().length > 0;
+  const [, markTourPending] = useSessionFlag("tour-pending");
+  const valid = nameError(normalizeName(name)) === null;
 
   async function start(e: React.FormEvent) {
     e.preventDefault();
     if (!valid || busy) return;
     setBusy(true);
-    await saveSettings({ name: name.trim() });
+    markTourPending(); // recién terminada la bienvenida: el personaje explica la app
+    await saveName(normalizeName(name));
   }
 
   return (

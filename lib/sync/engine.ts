@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "@/lib/notify";
+import { saveName } from "@/lib/store/actions";
 import { apiFetch, loadSupabase } from "@/lib/supabase/browser";
 import { db, withRemote, type Entry, type Goal, type Habit } from "@/lib/store/db";
 import { planProgress, planPull, planPush } from "./plan";
@@ -10,6 +12,20 @@ interface ServerState {
   habits: Habit[];
   entries: Entry[];
   goals: (Goal & { completedAt?: undefined })[];
+  settings?: { displayName?: string; displayNameUpdatedAt?: number };
+}
+
+// Al eliminar la cuenta se corta la sincronización antes de borrar, para que la cola no vuelva a subir nada.
+let stopped = false;
+export function stopSync() {
+  stopped = true;
+}
+
+/** La sesión ya no vale (p. ej. la cuenta se eliminó desde otro dispositivo): se cierra solo la sesión local. */
+async function endSession() {
+  const supabase = await loadSupabase();
+  await supabase?.auth.signOut().catch(() => {});
+  toast("Tu sesión terminó. Tus datos siguen en este dispositivo.", { duration: 6000 });
 }
 
 const firstSyncKey = (userId: string) => `synced-once:${userId}`;
@@ -33,14 +49,34 @@ async function enqueueEverything() {
   ]);
 }
 
+/**
+ * Nombre entre dispositivos. Sin nombre local se adopta el de la cuenta; si los dos tienen, gana el cambio más
+ * nuevo. Al iniciar sesión por primera vez con otro nombre en la cuenta, se pregunta con un aviso.
+ */
+async function reconcileName(server: ServerState["settings"], firstSync: boolean) {
+  const remote = server?.displayName;
+  if (!remote) return;
+  const local = await db.settings.get("me");
+  const at = server.displayNameUpdatedAt ?? Date.now();
+  if (!local?.name) return saveName(remote, at);
+  if (local.name === remote) return;
+  if (firstSync) {
+    toast(`En tu cuenta te llamo ${remote}.`, { duration: 8000, action: { label: `Usar ${remote}`, onClick: () => void saveName(remote, Date.now()) } });
+    return;
+  }
+  if (at > (local.nameUpdatedAt ?? 0)) await saveName(remote, at);
+}
+
 /** Empuja lo pendiente (outbox) y después converge al estado del servidor. Devuelve el estado resultante. */
 export async function syncOnce(): Promise<SyncStatus> {
+  if (stopped) return "off";
   const supabase = await loadSupabase();
   const session = (await supabase?.auth.getSession())?.data.session;
   if (!supabase || !session) return "off";
   const userId = session.user.id;
 
-  if (!hasSyncedBefore(userId)) await enqueueEverything();
+  const firstSync = !hasSyncedBefore(userId);
+  if (firstSync) await enqueueEverything();
 
   const rows = await db.outbox.toArray();
   const plan = planPush(rows.map((r) => ({ ...r, seq: r.seq! })));
@@ -59,15 +95,29 @@ export async function syncOnce(): Promise<SyncStatus> {
       entries: entries.filter(Boolean),
       goals: goals.filter(Boolean).map((g) => ({ ...g!, completedAt: undefined })),
       deleted: { habits: plan.deletes.habit, entries: plan.deletes.entry, goals: plan.deletes.goal },
-      settings: { timezone: settings.timezone, weekStartsOn: settings.weekStartsOn === 0 || settings.weekStartsOn === 6 ? settings.weekStartsOn : 1 },
+      settings: {
+        timezone: settings.timezone,
+        weekStartsOn: settings.weekStartsOn === 0 || settings.weekStartsOn === 6 ? settings.weekStartsOn : 1,
+        // La primera vez no se pisa el nombre que ya tenga la cuenta: se pregunta después (ver abajo)
+        ...(!firstSync && "name" in settings && settings.name ? { displayName: settings.name, displayNameUpdatedAt: settings.nameUpdatedAt } : {}),
+      },
     }),
   });
+  if (push.status === 401) {
+    await endSession();
+    return "off";
+  }
   if (!push.ok) return "error";
   await db.outbox.bulkDelete(rows.map((r) => r.seq!));
 
   const pull = await apiFetch("/api/sync");
+  if (pull.status === 401) {
+    await endSession();
+    return "off";
+  }
   if (!pull.ok) return "error";
   const server = (await pull.json()) as ServerState;
+  await reconcileName(server.settings, firstSync);
 
   // Lo encolado mientras se sincronizaba (cambios nuevos) no se pisa ni se borra.
   const pending = new Set((await db.outbox.toArray()).map((r) => r.id));

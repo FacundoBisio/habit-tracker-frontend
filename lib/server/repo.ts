@@ -46,6 +46,9 @@ export interface ServerSettings {
   telegramChatId?: string;
   reminderTime: string; // HH:MM hora local
   remindersEnabled: boolean;
+  displayName?: string;
+  /** Cuándo se cambió el nombre (ms). Con dos dispositivos gana el cambio más nuevo. */
+  displayNameUpdatedAt?: number;
 }
 
 export const DEFAULT_SERVER_SETTINGS: ServerSettings = {
@@ -108,4 +111,9 @@ export interface Repo {
   // Confirmaciones pendientes del bot
   savePending(userId: string, chatId: string, payload: unknown): Promise<string>;
   takePending(id: string, chatId: string): Promise<{ userId: string; payload: unknown } | null>;
+
+  /** Borra TODO lo del usuario (hábitos, registros, objetivos, ajustes, tokens, códigos, pendientes). Idempotente. */
+  deleteUserData(userId: string): Promise<void>;
+  /** Desvincula Telegram: borra el chat y apaga los recordatorios. */
+  unlinkTelegram(userId: string): Promise<void>;
 }

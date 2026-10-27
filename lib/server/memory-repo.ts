@@ -137,6 +137,22 @@ export function createMemoryRepo(seed?: { goals?: (ServerGoal & { userId: string
       pending.delete(pid);
       return { userId: p.userId, payload: p.payload };
     },
+    async deleteUserData(userId) {
+      const drop = <T extends { userId: string }>(list: T[]) => {
+        for (let i = list.length - 1; i >= 0; i--) if (list[i].userId === userId) list.splice(i, 1);
+      };
+      drop(entries);
+      drop(goals);
+      drop(habits);
+      drop(tokens);
+      drop(codes);
+      settings.delete(userId);
+      for (const [k, p] of pending) if (p.userId === userId) pending.delete(k);
+    },
+    async unlinkTelegram(userId) {
+      const s = settings.get(userId);
+      if (s) settings.set(userId, { ...s, telegramChatId: undefined, remindersEnabled: false });
+    },
   };
   return repo;
 }

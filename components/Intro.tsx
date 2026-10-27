@@ -139,7 +139,8 @@ function SlideTwo({ reduced }: { reduced: boolean }) {
  * Entrada con pantallazos a pantalla completa: tipografía enorme, la bola entera arriba de todo y
  * un revelado circular entre pantallas. Siempre oscuro. Con "menos movimiento" solo hay fundidos.
  */
-export function Intro({ onDone }: { onDone: () => void }) {
+/** `replay`: vista desde Ajustes; no pide el nombre ni toca datos y el botón final dice "Volver". */
+export function Intro({ onDone, mode = "first" }: { onDone: () => void; mode?: "first" | "replay" }) {
   const reduced = useReducedMotion() ?? false;
   const [index, setIndex] = useState(0);
   const last = index === SLIDES - 1;
@@ -212,7 +213,7 @@ export function Intro({ onDone }: { onDone: () => void }) {
           className="min-h-12 rounded-full px-7 text-[15px] font-semibold shadow-[0_10px_28px_-10px_rgba(61,213,152,0.9)] transition active:scale-95"
           style={{ background: GREEN, color: "#04140c" }}
         >
-          {last ? "Empezar" : "Siguiente"}
+          {last ? (mode === "replay" ? "Volver" : "Empezar") : "Siguiente"}
         </button>
       </div>
     </motion.div>
