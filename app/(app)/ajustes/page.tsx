@@ -15,7 +15,7 @@ import { cn } from "@/lib/cn";
 import { applyTheme, readTheme, type Theme } from "@/lib/theme";
 import type { WeekStart } from "@/lib/domain/types";
 import { describeSchedule } from "@/lib/domain/schedule";
-import { exportAll, importJson, saveSettings, updateHabit } from "@/lib/store/actions";
+import { saveSettings, updateHabit } from "@/lib/store/actions";
 import type { Habit } from "@/lib/store/db";
 import { useHabitsState, useSettings } from "@/lib/store/hooks";
 import { IconChip } from "@/components/HabitIcon";
@@ -51,6 +51,8 @@ export default function SettingsPage() {
   const zones = ZONES.includes(settings.timezone) ? ZONES : [settings.timezone, ...ZONES];
 
   async function doExport() {
+    // El backup (y zod) se baja recién acá: no hace falta en el JS inicial.
+    const { exportAll } = await import("@/lib/store/backup");
     const blob = new Blob([JSON.stringify(await exportAll(), null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -61,6 +63,7 @@ export default function SettingsPage() {
 
   async function doImport(file: File) {
     try {
+      const { importJson } = await import("@/lib/store/backup");
       const { habits: h, entries: e } = await importJson(JSON.parse(await file.text()));
       toast.success(`Importados ${h} hábitos y ${e} registros`);
     } catch {
