@@ -35,7 +35,7 @@ Alcance: todo el repo (dominio, PWA, API de Atajos, bot, sincronización, seguri
 ### Riesgos abiertos
 | Riesgo | Severidad | Nota |
 |---|---|---|
-| Rate limit en memoria por instancia serverless | Media | Es un freno contra ráfagas, no una garantía global. Pasar a una tabla/KV si hay uso real |
+| Rate limit en memoria por instancia serverless; `/api/sync` y `/api/me/*` sin límite | Media | Es un freno contra ráfagas, no una garantía global. Pasar a una tabla `rate_limits` (S5 de la lista v2) |
 | Sin Content-Security-Policy | Media | El script de tema es inline: requiere CSP con nonce. Conviene agregarla antes de abrir la app a terceros |
 | `drizzle-repo.ts` y `rls.sql` **no se probaron contra un Postgres real** | Media | Es el mayor punto ciego del proyecto (ver Pruebas) |
 | Tokens de API sin vencimiento ni alcance (todo o nada) | Baja | Aceptable para uso personal |
