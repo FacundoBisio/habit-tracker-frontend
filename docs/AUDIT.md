@@ -30,7 +30,7 @@ Alcance: todo el repo (dominio, PWA, API de Atajos, bot, sincronización, seguri
 - Autenticación por `Authorization: Bearer` (no por cookies): sin superficie de CSRF.
 - Validación Zod en todas las rutas; las respuestas del LLM se validan y se resuelven contra los hábitos del propio usuario (la inyección de prompt solo puede afectar sus propios datos).
 - Un único `dangerouslySetInnerHTML`, con un script estático (tema).
-- RLS activa en todas las tablas como defensa en profundidad (`lib/db/rls.sql`).
+- RLS activa en todas las tablas **sin políticas** y sin permisos para `anon`/`authenticated` (migración `drizzle/0005_rls_lockdown.sql`): la API pública de Supabase no puede leer ni escribir nada. `lib/db/rls.test.ts` falla si una tabla nueva no tiene RLS.
 
 ### Riesgos abiertos
 | Riesgo | Severidad | Nota |

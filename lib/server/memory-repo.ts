@@ -114,6 +114,10 @@ export function createMemoryRepo(seed?: { goals?: (ServerGoal & { userId: string
       const c = codes.find((x) => x.code === code && !x.usedAt && x.expiresAt > now);
       if (!c) return null;
       c.usedAt = now;
+      // Un chat pertenece a una sola cuenta: se desvincula de la anterior.
+      for (const [uid, st] of settings) {
+        if (uid !== c.userId && st.telegramChatId === chatId) settings.set(uid, { ...st, telegramChatId: undefined, remindersEnabled: false });
+      }
       await repo.updateSettings(c.userId, { telegramChatId: chatId });
       return c.userId;
     },

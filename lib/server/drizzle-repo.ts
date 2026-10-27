@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lte } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lte, ne } from "drizzle-orm";
 import type { WeekStart } from "@/lib/domain/types";
 import { getDb } from "@/lib/db/client";
 import * as t from "@/lib/db/schema";
@@ -231,6 +231,11 @@ export function createDrizzleRepo(): Repo {
         .where(and(eq(t.linkCodes.code, code), isNull(t.linkCodes.usedAt), gt(t.linkCodes.expiresAt, now)))
         .returning({ userId: t.linkCodes.userId });
       if (!row) return null;
+      // Un chat pertenece a una sola cuenta (índice único): se desvincula de la anterior.
+      await db
+        .update(t.userSettings)
+        .set({ telegramChatId: null, remindersEnabled: false, updatedAt: new Date() })
+        .where(and(eq(t.userSettings.telegramChatId, chatId), ne(t.userSettings.userId, row.userId)));
       await repo.updateSettings(row.userId, { telegramChatId: chatId });
       return row.userId;
     },

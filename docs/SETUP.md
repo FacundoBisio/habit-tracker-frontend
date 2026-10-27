@@ -28,7 +28,7 @@ Sin las claves del LLM el bot y los Atajos siguen funcionando con el **parser po
 2. **Authentication → Providers → Email**: activado. En **Authentication → Email Templates → Magic Link** reemplazá el cuerpo para que muestre el código: `Tu código es {{ .Token }}`.
 3. Copiar las tres variables de la tabla.
 4. En tu máquina: copiá `.env.example` a `.env.local`, completá `DATABASE_URL` y corré `npm run db:migrate` (incluye `0003`: el nombre sincronizado en `user_settings.display_name`).
-5. En el **SQL Editor** de Supabase pegá y ejecutá `lib/db/rls.sql` (activa RLS en todas las tablas).
+5. La RLS se aplica sola con las migraciones (`drizzle/0005_rls_lockdown.sql`). En Vercel las migraciones corren solo en el deploy de producción (`scripts/migrate-if-prod.mjs`).
 6. **Database → Extensions**: habilitá `pg_cron` y `pg_net`.
 
 ### 2. Vercel

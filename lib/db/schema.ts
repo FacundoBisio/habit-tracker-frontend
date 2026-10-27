@@ -107,7 +107,10 @@ export const userSettings = pgTable("user_settings", {
   displayName: text("display_name"),
   displayNameUpdatedAt: timestamp("display_name_updated_at", { withTimezone: true }),
   ...timestamps,
-});
+}, (t) => [
+  // Un chat de Telegram pertenece a una sola cuenta (si no, findUserByChat sería ambiguo).
+  uniqueIndex("user_settings_telegram_chat_uq").on(t.telegramChatId).where(sql`${t.telegramChatId} is not null`),
+]);
 
 export const apiTokens = pgTable(
   "api_tokens",
