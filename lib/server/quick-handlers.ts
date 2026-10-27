@@ -6,7 +6,7 @@ import type { Repo, ServerHabit } from "./repo";
 import { deterministicUuid, hashToken } from "./security";
 import { fmtNum, impactSummary, refreshGoals } from "./service";
 import { glyph } from "@/lib/habit-icons";
-import { MAX_AMOUNT } from "./validate";
+import { MAX_AMOUNT, isRealDate, parseJson } from "./validate";
 
 export interface QuickDeps {
   repo: Repo;
@@ -15,7 +15,7 @@ export interface QuickDeps {
   now: () => Date;
 }
 
-const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date debe ser YYYY-MM-DD");
+const dateStr = z.string().refine(isRealDate, "date debe ser una fecha YYYY-MM-DD válida");
 const uuid = z.string().uuid();
 
 const logBody = z.object({
@@ -93,7 +93,7 @@ async function readJson<T>(req: Request, schema: z.ZodType<T>): Promise<{ data: 
   if (body === null) return respond(req, 413, "El cuerpo es demasiado grande");
   let raw: unknown;
   try {
-    raw = JSON.parse(body);
+    raw = parseJson(body);
   } catch {
     return respond(req, 400, "El cuerpo debe ser JSON");
   }

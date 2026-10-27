@@ -3,10 +3,12 @@ import { nameSchema } from "@/lib/domain/name";
 import { HABIT_ICONS } from "@/lib/habit-icons";
 import type { MeDeps } from "./me-handlers";
 import type { ServerEntry, ServerGoal, ServerHabit } from "./repo";
-import { MAX_AMOUNT, MAX_BODY_BYTES, isValidTimeZone, readJsonBody } from "./validate";
+import { MAX_AMOUNT, MAX_BODY_BYTES, isRealDate, isValidTimeZone, readJsonBody } from "./validate";
 
 const uuid = z.string().uuid();
-const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const date = z.string().refine(isRealDate, "fecha inválida");
+/** Postgres guarda los uuid en minúsculas: las comparaciones en memoria no distinguen mayúsculas. */
+const key = (id: string) => id.toLowerCase();
 
 const schedule = z.union([
   z.object({ type: z.literal("daily") }),
@@ -142,19 +144,19 @@ export function createSyncHandlers(deps: MeDeps) {
 
         await repo.upsertHabits(userId, habits as ServerHabit[]);
         // Solo se aceptan referencias a hábitos propios: un id ajeno nunca se vincula (ni se borraría en cascada).
-        const mine = new Set((await repo.listHabits(userId)).map((h) => h.id));
-        await repo.upsertGoals(userId, goals.map((g) => ({ ...g, links: g.links.filter((l) => mine.has(l.habitId)) }) as ServerGoal));
+        const mine = new Set((await repo.listHabits(userId)).map((h) => key(h.id)));
+        await repo.upsertGoals(userId, goals.map((g) => ({ ...g, links: g.links.filter((l) => mine.has(key(l.habitId))) }) as ServerGoal));
 
         const rejected: { id: string; reason: string }[] = [];
         const candidates: typeof entries = [];
         for (const e of entries) {
-          if (mine.has(e.habitId)) candidates.push(e);
+          if (mine.has(key(e.habitId))) candidates.push(e);
           else rejected.push({ id: e.id, reason: "El hábito no existe" });
         }
-        const stored = new Set(await repo.insertEntries(userId, candidates.map((e) => ({ ...e, occurredAt: new Date(e.occurredAt) }))));
+        const stored = new Set((await repo.insertEntries(userId, candidates.map((e) => ({ ...e, occurredAt: new Date(e.occurredAt) })))).map(key));
         const accepted: string[] = [];
         for (const e of candidates) {
-          if (stored.has(e.clientId)) accepted.push(e.id);
+          if (stored.has(key(e.clientId))) accepted.push(e.id);
           else rejected.push({ id: e.id, reason: "Choca con otro registro" });
         }
 

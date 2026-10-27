@@ -2,7 +2,7 @@ import { z } from "zod";
 import { nameSchema } from "@/lib/domain/name";
 import type { Repo } from "./repo";
 import { createRateLimiter, generateLinkCode, generateToken } from "./security";
-import { isValidTimeZone } from "./validate";
+import { isValidTimeZone, readJson } from "./validate";
 
 export interface MeDeps {
   repo: Repo;
@@ -63,7 +63,7 @@ export function createMeHandlers(deps: MeDeps) {
     /** El token en claro solo se devuelve acá, una vez. */
     createToken: (req: Request) =>
       withUser(req, async (userId) => {
-        const body = z.object({ name: z.string().min(1).max(60) }).safeParse(await req.json().catch(() => null));
+        const body = z.object({ name: z.string().min(1).max(60) }).safeParse(await readJson(req));
         if (!body.success) return Response.json({ ok: false, error: "name requerido" }, { status: 400 });
         const active = (await deps.repo.listTokens(userId)).filter((t) => !t.revokedAt);
         if (active.length >= MAX_ACTIVE_TOKENS) {
@@ -94,7 +94,7 @@ export function createMeHandlers(deps: MeDeps) {
 
     patchSettings: (req: Request) =>
       withUser(req, async (userId) => {
-        const body = settingsPatch.safeParse(await req.json().catch(() => null));
+        const body = settingsPatch.safeParse(await readJson(req));
         if (!body.success) {
           return Response.json({ ok: false, error: body.error.issues.map((i) => i.message).join("; ") }, { status: 400 });
         }
@@ -109,7 +109,7 @@ export function createMeHandlers(deps: MeDeps) {
      */
     deleteAccount: (req: Request) =>
       withUser(req, async (userId) => {
-        const body = z.object({ confirm: z.literal(DELETE_CONFIRM) }).safeParse(await req.json().catch(() => null));
+        const body = z.object({ confirm: z.literal(DELETE_CONFIRM) }).safeParse(await readJson(req));
         if (!body.success) return Response.json({ ok: false, error: `Falta la confirmación "${DELETE_CONFIRM}"` }, { status: 400 });
         const limit = deps.deleteLimiter?.(userId, deps.now().getTime());
         if (limit && !limit.ok) {

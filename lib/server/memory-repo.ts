@@ -27,36 +27,46 @@ export function createMemoryRepo(seed?: { goals?: (ServerGoal & { userId: string
     if (i === -1) habits.push({ ...habit, userId });
     else if (habits[i].userId === userId) habits[i] = { ...habit, userId };
   };
-  const putGoal = (userId: string, goal: ServerGoal) => {
+  const putGoal = (userId: string, input: ServerGoal) => {
+    // Como en Postgres (índice único goal_id + habit_id): un hábito repetido en los vínculos vale una vez, con el último peso
+    const goal = { ...input, links: [...new Map(input.links.map((l) => [l.habitId, l])).values()] };
     const i = goals.findIndex((g) => g.id === goal.id);
     if (i === -1) goals.push({ ...goal, userId });
     else if (goals[i].userId === userId) goals[i] = { ...goal, userId };
   };
 
+  /** Copia sin `userId` (lo mismo que devuelve la base): quien la reciba no puede tocar el estado interno. */
+  const strip = <T extends { userId: string }>(row: T): Omit<T, "userId"> => {
+    const copy: Partial<T> = structuredClone(row);
+    delete copy.userId;
+    return copy as Omit<T, "userId">;
+  };
+
   const repo: Repo = {
     async listHabits(userId) {
-      return habits.filter((h) => h.userId === userId).sort((a, b) => a.sortOrder - b.sortOrder);
+      return habits.filter((h) => h.userId === userId).sort((a, b) => a.sortOrder - b.sortOrder).map(strip);
     },
     async createHabit(userId, input: NewHabit) {
-      const habit = { ...input, id: input.id ?? id(), archived: false, sortOrder: habits.length, userId };
+      const sortOrder = habits.filter((h) => h.userId === userId).length;
+      const habit = { ...input, id: input.id ?? id(), archived: false, sortOrder, userId };
       habits.push(habit);
-      return habit;
+      return strip(habit);
     },
     async updateHabit(userId, hid, patch) {
       const h = habits.find((x) => x.id === hid && x.userId === userId);
       if (h) Object.assign(h, patch);
     },
     async listEntries(userId, range) {
-      return entries.filter(
-        (e) => e.userId === userId && (!range?.from || e.localDate >= range.from) && (!range?.to || e.localDate <= range.to),
-      );
+      return entries
+        .filter((e) => e.userId === userId && (!range?.from || e.localDate >= range.from) && (!range?.to || e.localDate <= range.to))
+        .map(strip);
     },
     async insertEntry(userId, input: NewEntry) {
       const dup = entries.find((e) => e.userId === userId && e.clientId === input.clientId);
-      if (dup) return { entry: dup, duplicate: true };
+      if (dup) return { entry: strip(dup), duplicate: true };
       const entry = { ...input, id: input.id ?? id(), userId };
       entries.push(entry);
-      return { entry, duplicate: false };
+      return { entry: strip(entry), duplicate: false };
     },
     async deleteEntries(userId, ids) {
       for (let i = entries.length - 1; i >= 0; i--) {
@@ -64,7 +74,7 @@ export function createMemoryRepo(seed?: { goals?: (ServerGoal & { userId: string
       }
     },
     async listGoals(userId) {
-      return goals.filter((g) => g.userId === userId);
+      return goals.filter((g) => g.userId === userId).map(strip);
     },
     async setGoalStatus(userId, gid, status) {
       const g = goals.find((x) => x.id === gid && x.userId === userId);
@@ -80,9 +90,11 @@ export function createMemoryRepo(seed?: { goals?: (ServerGoal & { userId: string
       for (let i = habits.length - 1; i >= 0; i--) {
         if (habits[i].userId === userId && ids.includes(habits[i].id)) habits.splice(i, 1);
       }
+      // En Postgres los registros y los vínculos de objetivos se borran en cascada (FK)
       for (let i = entries.length - 1; i >= 0; i--) {
         if (entries[i].userId === userId && ids.includes(entries[i].habitId)) entries.splice(i, 1);
       }
+      for (const g of goals) if (g.userId === userId) g.links = g.links.filter((l) => !ids.includes(l.habitId));
     },
     async upsertGoal(userId, goal) {
       putGoal(userId, goal);
@@ -147,7 +159,7 @@ export function createMemoryRepo(seed?: { goals?: (ServerGoal & { userId: string
       if (t) t.lastUsedAt = new Date();
     },
     async listTokens(userId) {
-      return tokens.filter((t) => t.userId === userId);
+      return tokens.filter((t) => t.userId === userId).map(({ id, name, lastUsedAt, revokedAt, createdAt }) => ({ id, name, lastUsedAt, revokedAt, createdAt }));
     },
     async revokeToken(userId, tid) {
       const t = tokens.find((x) => x.id === tid && x.userId === userId);
