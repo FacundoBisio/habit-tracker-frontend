@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { rulesParser } from "@/lib/nl";
+import { rulesParser, type NLParser } from "@/lib/nl";
 import { createMemoryRepo } from "./memory-repo";
 import { createQuickHandlers } from "./quick-handlers";
 import type { ServerGoal } from "./repo";
@@ -9,7 +9,7 @@ const USER = "user-1";
 // 2026-03-11 02:30 UTC = martes 10 de marzo 23:30 en Argentina
 const NOW = new Date("2026-03-11T02:30:00Z");
 
-async function setup(limit = 100) {
+async function setup(limit = 100, now: () => Date = () => NOW) {
   const goals: (ServerGoal & { userId: string })[] = [];
   const repo = createMemoryRepo({ goals });
   const water = await repo.createHabit(USER, { name: "Agua", emoji: "💧", color: "teal", kind: "quantity", unit: "vasos", defaultAmount: 1, schedule: { type: "daily" }, aliases: ["vaso"] });
@@ -20,7 +20,7 @@ async function setup(limit = 100) {
   });
   const { token, hash } = generateToken();
   await repo.createToken(USER, "iPhone", hash);
-  const handlers = createQuickHandlers({ repo, parser: rulesParser, limiter: createRateLimiter(limit, 60_000), now: () => NOW });
+  const handlers = createQuickHandlers({ repo, parser: rulesParser, limiter: createRateLimiter(limit, 60_000), now });
   return { repo, handlers, token, water, gym };
 }
 
@@ -105,6 +105,51 @@ describe("POST /api/quick/log", () => {
     expect((await handlers.log(req("log", token, { amount: 1 }))).status).toBe(400);
   });
 
+  it("date: rechaza más de un año atrás y más allá de mañana; acepta hace un año y mañana", async () => {
+    const { handlers, token, repo } = await setup();
+    // hoy local = 2026-03-10
+    const old = await handlers.log(req("log", token, { habit: "agua", date: "2025-03-08" }));
+    expect(old.status).toBe(400);
+    expect((await old.json()).text).toContain("más de un año");
+    expect((await handlers.log(req("log", token, { habit: "agua", date: "2026-03-12" }))).status).toBe(400);
+    expect((await handlers.log(req("log", token, { habit: "agua", date: "2025-03-10" }))).status).toBe(200);
+    expect((await handlers.log(req("log", token, { habit: "agua", date: "2026-03-11" }))).status).toBe(200);
+    expect(await repo.listEntries(USER)).toHaveLength(2);
+  });
+
+  it("cuerpo > 16 KB → 413 (por content-length o por lo leído) y no escribe", async () => {
+    const { handlers, token, repo } = await setup();
+    const big = { habit: "agua", note: "x".repeat(17_000) };
+    const declared = await handlers.log(req("log", token, big));
+    expect(declared.status).toBe(413);
+
+    // Sin content-length (stream): se corta al leer.
+    const bytes = new TextEncoder().encode(JSON.stringify({ text: "agua 1", confirm: true, pad: "y".repeat(20_000) }));
+    const stream = new ReadableStream<Uint8Array>({
+      start(c) {
+        for (let i = 0; i < bytes.length; i += 1024) c.enqueue(bytes.slice(i, i + 1024));
+        c.close();
+      },
+    });
+    const streamed = new Request("http://localhost/api/quick/ingest", {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: stream,
+      duplex: "half",
+    } as RequestInit);
+    expect(streamed.headers.get("content-length")).toBeNull();
+    expect((await handlers.ingest(streamed)).status).toBe(413);
+
+    // Un content-length mentiroso (chico) tampoco alcanza: cuenta lo leído.
+    const lying = new Request("http://localhost/api/quick/log", {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json", "content-length": "10" },
+      body: JSON.stringify(big),
+    });
+    expect((await handlers.log(lying)).status).toBe(413);
+    expect(await repo.listEntries(USER)).toHaveLength(0);
+  });
+
   it("devuelve texto plano si se pide", async () => {
     const { handlers, token } = await setup();
     const res = await handlers.log(req("log", token, { habit: "gym" }, "?format=text"));
@@ -129,6 +174,70 @@ describe("POST /api/quick/ingest", () => {
     await handlers.ingest(req("ingest", token, body));
     await handlers.ingest(req("ingest", token, body));
     expect(await repo.listEntries(USER)).toHaveLength(2);
+  });
+
+  it("sin client_id: el mismo texto dos veces el mismo día (separado >60 s) registra dos veces", async () => {
+    let now = NOW;
+    const { handlers, token, repo } = await setup(100, () => now);
+    await handlers.ingest(req("ingest", token, { text: "agua 1", confirm: true }));
+    now = new Date(NOW.getTime() + 5 * 60_000);
+    const json = await (await handlers.ingest(req("ingest", token, { text: "agua 1", confirm: true }))).json();
+    expect(json.text).not.toContain("ya estaba registrado");
+    expect(await repo.listEntries(USER)).toHaveLength(2);
+  });
+
+  it("sin client_id: un reintento inmediato (mismo minuto) no duplica", async () => {
+    let now = NOW;
+    const { handlers, token, repo } = await setup(100, () => now);
+    await handlers.ingest(req("ingest", token, { text: "agua 1", confirm: true }));
+    now = new Date(NOW.getTime() + 10_000);
+    const json = await (await handlers.ingest(req("ingest", token, { text: "agua 1", confirm: true }))).json();
+    expect(json.text).toContain("ya estaba registrado");
+    expect(await repo.listEntries(USER)).toHaveLength(1);
+  });
+
+  it("más de 5 ítems: confirm=true no alcanza, hace falta el confirm_token de la vista previa", async () => {
+    const { repo, token, water } = await setup();
+    const n = { count: 6 };
+    const parser: NLParser = {
+      name: "fake-llm",
+      parse: async () => Array.from({ length: n.count }, (_, i) => ({ habitId: water.id, amount: 1, localDate: `2026-03-0${i + 1}` })),
+    };
+    const handlers = createQuickHandlers({ repo, parser, limiter: createRateLimiter(100, 60_000), now: () => NOW });
+
+    const first = await (await handlers.ingest(req("ingest", token, { text: "muchos", confirm: true }))).json();
+    expect(first.registered).toBe(false);
+    expect(first.needs_confirmation).toBe(true);
+    expect(first.confirm_token).toEqual(expect.any(String));
+    expect(await repo.listEntries(USER)).toHaveLength(0);
+
+    const bad = await (await handlers.ingest(req("ingest", token, { text: "muchos", confirm: true, confirm_token: "nope" }))).json();
+    expect(bad.registered).toBe(false);
+
+    // La vista previa (confirm=false) también trae el token.
+    const preview = await (await handlers.ingest(req("ingest", token, { text: "muchos", confirm: false }))).json();
+    expect(preview.confirm_token).toBe(first.confirm_token);
+
+    const ok = await (await handlers.ingest(req("ingest", token, { text: "muchos", confirm: true, confirm_token: first.confirm_token }))).json();
+    expect(ok.registered).toBe(true);
+    expect(await repo.listEntries(USER)).toHaveLength(6);
+
+    // Si en el reintento el parser entiende otra cosa, el token viejo ya no sirve.
+    n.count = 7;
+    const changed = await (await handlers.ingest(req("ingest", token, { text: "muchos", confirm: true, confirm_token: first.confirm_token }))).json();
+    expect(changed.registered).toBe(false);
+  });
+
+  it("5 ítems o menos registran directo con confirm=true", async () => {
+    const { repo, token, water } = await setup();
+    const parser: NLParser = {
+      name: "fake-llm",
+      parse: async () => Array.from({ length: 5 }, (_, i) => ({ habitId: water.id, amount: 1, localDate: `2026-03-0${i + 1}` })),
+    };
+    const handlers = createQuickHandlers({ repo, parser, limiter: createRateLimiter(100, 60_000), now: () => NOW });
+    const json = await (await handlers.ingest(req("ingest", token, { text: "cinco", confirm: true }))).json();
+    expect(json.registered).toBe(true);
+    expect(await repo.listEntries(USER)).toHaveLength(5);
   });
 
   it("informa hábitos que no matchean", async () => {

@@ -25,6 +25,8 @@ interface PendingItem {
 }
 interface PendingPayload {
   rawInput: string;
+  /** update_id del mensaje original: si Telegram reintenta y quedan dos pendientes, confirmar ambas no duplica. */
+  updateId?: number;
   resolved: PendingItem[];
   unmatched: { term: string; amount: number; localDate: string }[];
 }
@@ -36,13 +38,20 @@ export async function handleUpdate(update: TelegramUpdate, deps: BotDeps): Promi
     const cq = update.callback_query;
     await handleCallback(String(cq.message!.chat.id), cq.message!.message_id, cq.id, cq.data ?? "", deps);
   } else if (update.message?.text) {
-    await handleText(String(update.message.chat.id), update.message.text.trim(), deps);
+    await handleText(String(update.message.chat.id), update.message.text.trim(), deps, update.update_id);
   }
 }
 
+/**
+ * client_id de un registro del bot. Con `update_id` es determinístico: si Telegram reintenta el
+ * webhook (timeout, 5xx) el mismo update no registra dos veces. Sin él, uno aleatorio.
+ */
+const botClientId = (updateId: number | undefined, i = 0) =>
+  updateId === undefined ? crypto.randomUUID() : deterministicUuid(`tg|${updateId}|${i}`);
+
 // ---------- Texto ----------
 
-async function handleText(chatId: string, text: string, deps: BotDeps) {
+async function handleText(chatId: string, text: string, deps: BotDeps, updateId?: number) {
   const { repo, tg } = deps;
   const cmd = /^\/(\w+)(?:@\w+)?\s*([\s\S]*)$/.exec(text);
   const userId = await repo.findUserByChat(chatId);
@@ -105,7 +114,7 @@ async function handleText(chatId: string, text: string, deps: BotDeps) {
   // Un toque desde el teclado de respuesta: nombre o alias exacto → registro directo con deshacer.
   const q = normalize(text);
   const exact = habits.filter((h) => [h.name, ...h.aliases].map(normalize).includes(q));
-  if (exact.length === 1) return logDirect(chatId, userId, exact[0], deps, settings, today);
+  if (exact.length === 1) return logDirect(chatId, userId, exact[0], deps, settings, today, updateId);
 
   const parsed = await deps.parser.parse(text, { habits, today, timezone: settings.timezone });
   const { resolved, unmatched } = resolveItems(parsed, habits);
@@ -117,6 +126,7 @@ async function handleText(chatId: string, text: string, deps: BotDeps) {
     userId,
     {
       rawInput: text,
+      updateId,
       resolved: resolved.map((r) => ({ habitId: r.habit.id, amount: r.amount, localDate: r.localDate, note: r.note })),
       unmatched,
     },
@@ -126,7 +136,15 @@ async function handleText(chatId: string, text: string, deps: BotDeps) {
   );
 }
 
-async function logDirect(chatId: string, userId: string, habit: ServerHabit, deps: BotDeps, settings: Awaited<ReturnType<Repo["getSettings"]>>, today: string) {
+async function logDirect(
+  chatId: string,
+  userId: string,
+  habit: ServerHabit,
+  deps: BotDeps,
+  settings: Awaited<ReturnType<Repo["getSettings"]>>,
+  today: string,
+  updateId?: number,
+) {
   const now = deps.now();
   const { entry } = await deps.repo.insertEntry(userId, {
     habitId: habit.id,
@@ -135,7 +153,7 @@ async function logDirect(chatId: string, userId: string, habit: ServerHabit, dep
     occurredAt: now,
     source: "bot",
     rawInput: habit.name,
-    clientId: crypto.randomUUID(),
+    clientId: botClientId(updateId),
   });
   const completed = await refreshGoals(deps.repo, userId, settings, today);
   const text = await impactSummary(deps.repo, userId, habit, habit.defaultAmount, now, completed);
@@ -234,7 +252,8 @@ async function handleCallback(chatId: string, messageId: number, callbackId: str
       for (const [i, item] of payload.resolved.entries()) {
         const habit = habits.find((h) => h.id === item.habitId);
         if (!habit) continue;
-        // client_id determinístico: un doble toque en "Confirmar" no duplica.
+        // client_id determinístico: un doble toque en "Confirmar" no duplica, y si el mensaje
+        // original llegó dos veces (reintento del webhook) confirmar ambas pendientes tampoco.
         await repo.insertEntry(userId, {
           habitId: habit.id,
           amount: item.amount,
@@ -243,7 +262,7 @@ async function handleCallback(chatId: string, messageId: number, callbackId: str
           note: item.note,
           source: "bot",
           rawInput: payload.rawInput,
-          clientId: deterministicUuid(`${id}|${i}`),
+          clientId: payload.updateId === undefined ? deterministicUuid(`${id}|${i}`) : botClientId(payload.updateId, i),
         });
         touched.set(habit.id, (touched.get(habit.id) ?? 0) + item.amount);
       }
