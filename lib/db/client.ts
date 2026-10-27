@@ -1,14 +1,15 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema";
+import { databaseUrl } from "./url";
 
 declare global {
   var __pg: ReturnType<typeof postgres> | undefined;
 }
 
 function connection() {
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error("DATABASE_URL no está definida");
+  const url = databaseUrl();
+  if (!url) throw new Error("DATABASE_URL (o POSTGRES_URL) no está definida");
   // Pooler de Supabase en modo transacción: sin prepared statements y 1 conexión por instancia.
   return postgres(url, { prepare: false, max: 1 });
 }
