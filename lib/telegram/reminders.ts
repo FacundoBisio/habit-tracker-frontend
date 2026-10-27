@@ -1,5 +1,5 @@
 import { formatInTimeZone } from "date-fns-tz";
-import { toLocalDate, weekday } from "@/lib/domain/dates";
+import { toLocalDate, weekday, weekRange } from "@/lib/domain/dates";
 import { glyph } from "@/lib/habit-icons";
 import type { ReminderTarget, Repo } from "@/lib/server/repo";
 import { pendingToday } from "@/lib/server/service";
@@ -72,7 +72,10 @@ async function remindOne(deps: Deps, target: ReminderTarget, now: Date) {
   if (!(await deps.repo.claimReminder(target.userId, today))) return 0;
 
   const settings = await deps.repo.getSettings(target.userId);
-  const [habits, entries] = await Promise.all([deps.repo.listHabits(target.userId), deps.repo.listEntries(target.userId)]);
+  // Los pendientes solo miran la semana actual; el domingo el resumen de objetivos necesita el historial.
+  const sunday = weekday(today) === 0;
+  const range = sunday ? undefined : { from: weekRange(today, settings.weekStartsOn).start, to: today };
+  const [habits, entries] = await Promise.all([deps.repo.listHabits(target.userId), deps.repo.listEntries(target.userId, range)]);
 
   let sent = 0;
   const pending = pendingToday(habits, entries, today, settings);
@@ -80,7 +83,7 @@ async function remindOne(deps: Deps, target: ReminderTarget, now: Date) {
     await deps.tg.sendMessage(target.chatId, `🔔 Te falta hoy:\n${pending.map((h) => `• ${glyph(h.emoji)} ${h.name}`).join("\n")}`);
     sent++;
   }
-  if (weekday(today) === 0) {
+  if (sunday) {
     const goals = await deps.repo.listGoals(target.userId);
     await deps.tg.sendMessage(
       target.chatId,
