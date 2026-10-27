@@ -1,4 +1,5 @@
 import { safeEqual } from "@/lib/server/security";
+import { parseJson } from "@/lib/server/validate";
 import type { TelegramUpdate } from "./api";
 import { handleUpdate, type BotDeps } from "./handler";
 
@@ -12,7 +13,7 @@ export async function handleWebhook(req: Request, deps: BotDeps, secret: string 
 
   let update: TelegramUpdate;
   try {
-    update = (await req.json()) as TelegramUpdate;
+    update = parseJson(await req.text()) as TelegramUpdate;
   } catch {
     return new Response("bad request", { status: 400 });
   }

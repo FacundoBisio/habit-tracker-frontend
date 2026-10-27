@@ -103,6 +103,8 @@ describe("POST /api/quick/log", () => {
     expect((await handlers.log(req("log", token, { habit: "yoga" }))).status).toBe(404);
     expect((await handlers.log(req("log", token, { habit: "agua", date: "2026-04-01" }))).status).toBe(400);
     expect((await handlers.log(req("log", token, { amount: 1 }))).status).toBe(400);
+    // Dentro del rango pero inexistente: Postgres la rechazaría con un error (500)
+    expect((await handlers.log(req("log", token, { habit: "agua", date: "2026-02-30" }))).status).toBe(400);
   });
 
   it("date: rechaza más de un año atrás y más allá de mañana; acepta hace un año y mañana", async () => {
