@@ -4,7 +4,8 @@ import { toast } from "@/lib/notify";
 import { saveName } from "@/lib/store/actions";
 import { apiFetch, loadSupabase } from "@/lib/supabase/browser";
 import { db, withRemote, type Entry, type Goal, type Habit } from "@/lib/store/db";
-import { planProgress, planPull, summarizeOutbox } from "./plan";
+import { planProgress, summarizeOutbox } from "./plan";
+import { applyPull } from "./pull";
 import { pushOutbox } from "./push";
 
 export type SyncStatus = "off" | "syncing" | "synced" | "pending" | "error";
@@ -123,18 +124,11 @@ export async function syncOnce(): Promise<SyncStatus> {
   // Lo encolado mientras se sincronizaba (cambios nuevos) no se pisa ni se borra.
   const pending = new Set((await db.outbox.toArray()).map((r) => r.id));
 
+  // Solo se escribe lo que cambió: con los mismos datos el pull de cada minuto no toca IndexedDB (ni la UI).
   await withRemote(async () => {
-    const hp = planPull((await db.habits.toCollection().primaryKeys()) as string[], server.habits.map((h) => h.id), pending);
-    await db.habits.bulkPut(server.habits.filter((h) => hp.put.includes(h.id)));
-    await db.habits.bulkDelete(hp.remove);
-
-    const gp = planPull((await db.goals.toCollection().primaryKeys()) as string[], server.goals.map((g) => g.id), pending);
-    await db.goals.bulkPut(server.goals.filter((g) => gp.put.includes(g.id)));
-    await db.goals.bulkDelete(gp.remove);
-
-    const ep = planPull((await db.entries.toCollection().primaryKeys()) as string[], server.entries.map((e) => e.id), pending);
-    await db.entries.bulkPut(server.entries.filter((e) => ep.put.includes(e.id)));
-    await db.entries.bulkDelete(ep.remove);
+    await applyPull(db.habits, server.habits, pending);
+    await applyPull(db.goals, server.goals, pending);
+    await applyPull(db.entries, server.entries, pending);
   });
 
   try {
