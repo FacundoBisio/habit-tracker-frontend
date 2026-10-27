@@ -1,6 +1,5 @@
 import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
-import type { PgDatabase } from "drizzle-orm/pg-core";
-import type { PostgresJsQueryResultHKT } from "drizzle-orm/postgres-js";
+import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type { WeekStart } from "@/lib/domain/types";
 import { getDb } from "@/lib/db/client";
 import * as t from "@/lib/db/schema";
@@ -47,15 +46,17 @@ const toSettings = (r: SettingsRow): ServerSettings => ({
   displayNameUpdatedAt: r.displayNameUpdatedAt?.getTime(),
 });
 
-/** La base o una transacción abierta: los dos sirven para las mismas consultas. */
-type Conn = PgDatabase<PostgresJsQueryResultHKT, typeof t>;
+/** La base o una transacción abierta (postgres-js en producción, PGlite en los tests): sirven para las mismas consultas. */
+type Conn = PgDatabase<PgQueryResultHKT, typeof t>;
 
 /** Filas por sentencia en las escrituras en bloque (lejos del tope de 65535 parámetros de Postgres). */
 const CHUNK = 500;
 const chunks = <T>(list: T[]): T[][] => Array.from({ length: Math.ceil(list.length / CHUNK) }, (_, i) => list.slice(i * CHUNK, (i + 1) * CHUNK));
 /** Si llega el mismo id dos veces vale el último (un upsert en bloque no puede tocar dos veces la misma fila). */
-const lastById = <T extends { id: string }>(list: T[]): T[] => [...new Map(list.map((x) => [x.id, x])).values()];
+const lastById = <T extends { id: string }>(list: T[]): T[] => [...new Map(list.map((x) => [x.id.toLowerCase(), x])).values()];
 const excluded = (column: string) => sql.raw(`excluded."${column}"`);
+/** Un hábito repetido en los vínculos violaría `goal_links_uq` y abortaría todo: vale el último peso. */
+const uniqueLinks = (links: ServerGoal["links"]) => [...new Map(links.map((l) => [l.habitId.toLowerCase(), l])).values()];
 
 /** Implementación de producción. Toda consulta filtra por `user_id` (la conexión bypassa RLS). */
 export function createDrizzleRepo(conn?: Conn): Repo {
@@ -167,7 +168,7 @@ export function createDrizzleRepo(conn?: Conn): Repo {
       if (!row) return; // el id pertenece a otro usuario
       await db.delete(t.goalLinks).where(and(eq(t.goalLinks.goalId, goal.id), eq(t.goalLinks.userId, userId)));
       if (links.length) {
-        await db.insert(t.goalLinks).values(links.map((l) => ({ goalId: goal.id, habitId: l.habitId, weight: l.weight, userId })));
+        await db.insert(t.goalLinks).values(uniqueLinks(links).map((l) => ({ goalId: goal.id, habitId: l.habitId, weight: l.weight, userId })));
       }
     },
 
@@ -238,7 +239,7 @@ export function createDrizzleRepo(conn?: Conn): Repo {
       await db.delete(t.goalLinks).where(and(eq(t.goalLinks.userId, userId), inArray(t.goalLinks.goalId, ids)));
       const links = unique
         .filter((g) => owned.has(g.id))
-        .flatMap((g) => g.links.map((l) => ({ goalId: g.id, habitId: l.habitId, weight: l.weight, userId })));
+        .flatMap((g) => uniqueLinks(g.links).map((l) => ({ goalId: g.id, habitId: l.habitId, weight: l.weight, userId })));
       for (const part of chunks(links)) await db.insert(t.goalLinks).values(part);
     },
 
