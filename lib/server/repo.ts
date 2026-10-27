@@ -107,6 +107,8 @@ export interface Repo {
   consumeLinkCode(code: string, chatId: string, now: Date): Promise<string | null>;
   findUserByChat(chatId: string): Promise<string | null>;
   listReminderTargets(): Promise<ReminderTarget[]>;
+  /** Marca el recordatorio de `today` como enviado; false si ya se había mandado ese día (atómico). */
+  claimReminder(userId: string, today: LocalDate): Promise<boolean>;
 
   // Confirmaciones pendientes del bot
   savePending(userId: string, chatId: string, payload: unknown): Promise<string>;

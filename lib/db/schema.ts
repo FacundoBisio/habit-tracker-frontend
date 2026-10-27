@@ -103,6 +103,8 @@ export const userSettings = pgTable("user_settings", {
   telegramChatId: text("telegram_chat_id"),
   reminderTime: text("reminder_time").notNull().default("21:00"),
   remindersEnabled: boolean("reminders_enabled").notNull().default(false),
+  /** Último día local en que se mandó el recordatorio (evita repetir y permite mandarlo tarde si el cron se perdió). */
+  lastReminderDate: date("last_reminder_date"),
   /** Cómo te llama la app (se sincroniza entre dispositivos; gana el último cambio). */
   displayName: text("display_name"),
   displayNameUpdatedAt: timestamp("display_name_updated_at", { withTimezone: true }),

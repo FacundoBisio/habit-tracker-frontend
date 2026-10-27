@@ -305,8 +305,28 @@ describe("webhook y recordatorios", () => {
     expect(await runReminders({ repo: s.repo, tg: s.tg, now: () => NOW })).toBe(1);
     expect(s.last().text).toContain("Te falta hoy");
     expect(s.last().text).toContain("Agua");
-    // un minuto después ya no corresponde
+    // un minuto después ya se mandó hoy: no se repite
     expect(await runReminders({ repo: s.repo, tg: s.tg, now: () => new Date(NOW.getTime() + 60_000) })).toBe(0);
+  });
+
+  it("si el cron se atrasa o se pierde ese minuto, avisa igual (hasta 2 h tarde) y una sola vez por día", async () => {
+    const s = await setup();
+    // NOW es 23:30 en Argentina: hora configurada 23:20 → el cron llegó 10 minutos tarde
+    await s.repo.updateSettings(USER, { remindersEnabled: true, reminderTime: "23:20" });
+    const run = (ms: number) => runReminders({ repo: s.repo, tg: s.tg, now: () => new Date(NOW.getTime() + ms) });
+    expect(await run(0)).toBe(1);
+    expect(await run(5 * 60_000)).toBe(0);
+    // al día siguiente vuelve a avisar
+    expect(await run(86_400_000)).toBe(1);
+  });
+
+  it("no avisa antes de la hora ni con más de 2 h de atraso", async () => {
+    const s = await setup();
+    const run = () => runReminders({ repo: s.repo, tg: s.tg, now: () => NOW });
+    await s.repo.updateSettings(USER, { remindersEnabled: true, reminderTime: "23:45" });
+    expect(await run()).toBe(0);
+    await s.repo.updateSettings(USER, { reminderTime: "21:00" });
+    expect(await run()).toBe(0);
   });
 
   it("no manda recordatorio si no falta nada; domingo manda resumen semanal", async () => {

@@ -261,6 +261,21 @@ export function createDrizzleRepo(): Repo {
       }));
     },
 
+    async claimReminder(userId, today) {
+      // Un solo UPDATE condicional: si dos ejecuciones del cron se pisan, solo una gana.
+      const rows = await db
+        .update(t.userSettings)
+        .set({ lastReminderDate: today })
+        .where(
+          and(
+            eq(t.userSettings.userId, userId),
+            or(isNull(t.userSettings.lastReminderDate), lt(t.userSettings.lastReminderDate, today)),
+          ),
+        )
+        .returning({ id: t.userSettings.id });
+      return rows.length > 0;
+    },
+
     async deleteUserData(userId) {
       // Las tablas no tienen FK a auth.users: se borra explícitamente todo lo que tenga user_id, en una transacción.
       await db.transaction(async (tx) => {

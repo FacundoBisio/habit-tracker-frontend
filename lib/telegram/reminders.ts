@@ -39,8 +39,8 @@ export async function runCronTick(deps: Deps) {
 }
 
 /**
- * Se invoca cada minuto (pg_cron + pg_net, o GitHub Actions). Envía el recordatorio a quienes tienen
- * la hora configurada ahora mismo en su zona; los domingos agrega el resumen semanal.
+ * Se invoca cada minuto (pg_cron + pg_net, o GitHub Actions). Envía el recordatorio a quienes ya pasaron
+ * su hora configurada (en su zona) y todavía no lo recibieron hoy; los domingos agrega el resumen semanal.
  * Cada usuario se procesa aislado: un dato roto de uno no corta los avisos del resto.
  */
 export async function runReminders(deps: Deps) {
@@ -56,11 +56,22 @@ export async function runReminders(deps: Deps) {
   return sent;
 }
 
+/** Si el cron se atrasó o se perdió el minuto exacto, el aviso todavía sale hasta 2 h después (no a la madrugada). */
+export const REMINDER_LATE_MINUTES = 120;
+
+const minutesOf = (hhmm: string) => {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+};
+
 async function remindOne(deps: Deps, target: ReminderTarget, now: Date) {
-  if (formatInTimeZone(now, target.timezone, "HH:mm") !== target.reminderTime) return 0;
+  const late = minutesOf(formatInTimeZone(now, target.timezone, "HH:mm")) - minutesOf(target.reminderTime);
+  if (!(late >= 0 && late <= REMINDER_LATE_MINUTES)) return 0;
+  const today = toLocalDate(now, target.timezone);
+  // Se marca antes de mandar: ante dos ejecuciones simultáneas solo una avisa.
+  if (!(await deps.repo.claimReminder(target.userId, today))) return 0;
 
   const settings = await deps.repo.getSettings(target.userId);
-  const today = toLocalDate(now, target.timezone);
   const [habits, entries] = await Promise.all([deps.repo.listHabits(target.userId), deps.repo.listEntries(target.userId)]);
 
   let sent = 0;

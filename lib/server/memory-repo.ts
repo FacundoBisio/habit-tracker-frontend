@@ -15,6 +15,7 @@ export function createMemoryRepo(seed?: { goals?: (ServerGoal & { userId: string
   const entries: (ServerEntry & { userId: string })[] = [];
   const goals: (ServerGoal & { userId: string })[] = seed?.goals ?? [];
   const settings = new Map<string, ServerSettings>();
+  const reminderDays = new Map<string, string>();
   const tokens: { id: string; userId: string; name: string; hash: string; lastUsedAt: Date | null; revokedAt: Date | null; createdAt: Date }[] = [];
   const codes: { userId: string; code: string; expiresAt: Date; usedAt?: Date }[] = [];
   const pending = new Map<string, { userId: string; chatId: string; payload: unknown; createdAt: Date }>();
@@ -129,6 +130,12 @@ export function createMemoryRepo(seed?: { goals?: (ServerGoal & { userId: string
       return [...settings]
         .filter(([, s]) => s.remindersEnabled && s.telegramChatId)
         .map(([userId, s]) => ({ userId, chatId: s.telegramChatId!, timezone: s.timezone, reminderTime: s.reminderTime }));
+    },
+    async claimReminder(userId, today) {
+      const last = reminderDays.get(userId);
+      if (last && last >= today) return false;
+      reminderDays.set(userId, today);
+      return true;
     },
     async savePending(userId, chatId, payload) {
       const pid = id();
