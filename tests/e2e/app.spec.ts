@@ -443,6 +443,60 @@ test.describe("personaje 3D", () => {
     await expect(page.getByRole("img", { name: "El personaje toma agua" })).toBeVisible();
   });
 
+  /** Vuelve a la presentación (usuario nuevo) con el 3D elegido. */
+  async function restartAsNewUser(page: Page) {
+    const webgl = await page.evaluate(() => !!document.createElement("canvas").getContext("webgl2"));
+    test.skip(!webgl, "este navegador no tiene WebGL 2");
+    await page.evaluate(async () => {
+      await new Promise<void>((resolve) => {
+        const req = indexedDB.deleteDatabase("habit-tracker");
+        req.onsuccess = req.onerror = req.onblocked = () => resolve();
+      });
+      sessionStorage.removeItem("intro-done");
+      localStorage.setItem("mascot-mode", "3d");
+    });
+  }
+
+  test("motor único: un solo renderer y una sola descarga del modelo en toda la entrada", async ({ page }) => {
+    let glbRequests = 0;
+    page.on("request", (r) => {
+      if (r.url().endsWith("/models/mascot.glb")) glbRequests++;
+    });
+    await restartAsNewUser(page);
+    await page.reload();
+    await expect(page.getByRole("button", { name: "Saltar" })).toBeVisible();
+    await expect(page.locator("canvas")).toHaveCount(1, { timeout: 30_000 });
+    await page.getByRole("button", { name: "Siguiente" }).click(); // slide 2: el personaje NO se vuelve a montar
+    await page.waitForTimeout(800);
+    await expect(page.locator("canvas")).toHaveCount(1);
+    await page.getByRole("button", { name: "Empezar" }).click();
+    await expect(nameInput(page)).toBeVisible();
+    await nameInput(page).fill(NAME);
+    await page.getByRole("button", { name: "Empezar" }).click();
+    await expect(greeting(page)).toHaveText(`Hola, ${NAME}`);
+    await expect(page.locator("canvas")).toHaveCount(1, { timeout: 15_000 });
+    const stats = await page.evaluate(() => (window as unknown as { __mascotStats: { renderers: number; loads: number } }).__mascotStats);
+    expect(stats.renderers).toBe(1);
+    expect(stats.loads).toBe(1);
+    expect(glbRequests).toBe(1);
+  });
+
+  test("con el modelo demorado no se ve la bola 2D de pasada: aparece directamente el 3D", async ({ page }) => {
+    await restartAsNewUser(page);
+    await page.route("**/models/mascot.glb", async (route) => {
+      await new Promise((r) => setTimeout(r, 1500));
+      await route.continue();
+    });
+    await page.reload();
+    await expect(page.getByRole("button", { name: "Saltar" })).toBeVisible();
+    const ball = page.locator('[role="img"][aria-label^="El personaje"] svg');
+    await page.waitForTimeout(1000); // el modelo todavía está bajando
+    await expect(ball).toHaveCount(0);
+    await expect(page.locator("canvas")).toHaveCount(1, { timeout: 30_000 });
+    await expect(page.getByRole("img", { name: /^El personaje/ })).toBeVisible({ timeout: 30_000 });
+    await expect(ball).toHaveCount(0);
+  });
+
   test("si el modelo no carga, se queda la bola verde y la app sigue andando", async ({ page }) => {
     await createHabit(page, { name: "Meditar", icon: "Mente" });
     await createHabit(page, { name: "Leer", icon: "Lectura" }); // queda pendiente: el día no se completa

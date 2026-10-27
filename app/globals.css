@@ -205,6 +205,10 @@ button {
   pointer-events: none;
 }
 
+:root[data-intro] .aura i {
+  animation-play-state: paused;
+}
+
 .aura i {
   position: absolute;
   width: 78vmax;

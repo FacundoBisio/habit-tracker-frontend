@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { CloudOff } from "lucide-react";
 import { useEffect } from "react";
+import { mascot3dAllowed, preloadMascot } from "@/lib/mascot-engine-state";
 import { useSessionFlag } from "@/lib/session-flag";
 import { useAchievementUnlocks } from "@/lib/store/achievements";
 import { useDaySummary } from "@/lib/store/day";
@@ -15,7 +16,7 @@ import dynamic from "next/dynamic";
 import { TopBar } from "./TopBar";
 import { Welcome } from "./Welcome";
 
-// Cada uno se descarga solo cuando hace falta (el intro es para quien no tiene nombre; el splash, para quien sí).
+// Cada uno se descarga solo cuando hace falta (el intro es para quien no tiene nombre; el splash, solo para quien sí).
 const Intro = dynamic(() => import("./Intro").then((m) => m.Intro), { ssr: false });
 const LaunchSplash = dynamic(() => import("./LaunchSplash").then((m) => m.LaunchSplash), { ssr: false });
 
@@ -28,7 +29,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const welcome = ready && !settings.name;
   // La presentación con pantallazos va antes de pedir el nombre; un reload en la misma sesión salta directo al nombre.
   const [introDone, markIntroDone] = useSessionFlag("intro-done");
+  const [, markSplashShown] = useSessionFlag("splash-shown", true);
   useAchievementUnlocks();
+
+  // El 3D se prepara lo antes posible (descarga, parseo y shaders), para que ya esté cuando aparezca el personaje.
+  useEffect(() => {
+    if (mascot3dAllowed()) void preloadMascot();
+  }, []);
+  // Quien está en la presentación/bienvenida no necesita además el splash: nunca hay dos personajes a la vez.
+  useEffect(() => {
+    if (welcome) markSplashShown();
+  }, [welcome, markSplashShown]);
 
   useEffect(() => {
     if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) {
@@ -63,7 +74,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         )}
       </AnimatePresence>
       <ConfettiLayer />
-      <LaunchSplash />
+      {ready && !!settings.name && <LaunchSplash />}
     </>
   );
 }

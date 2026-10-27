@@ -1,7 +1,7 @@
 /* Service worker mínimo: la app es offline-first (datos en IndexedDB);
    esto cachea el shell para abrirla sin señal. */
-const CACHE = "habitos-v1";
-const SHELL = ["/", "/semana", "/objetivos", "/stats", "/ajustes", "/manifest.webmanifest"];
+const CACHE = "habitos-v2";
+const SHELL = ["/", "/semana", "/objetivos", "/stats", "/ajustes", "/manifest.webmanifest", "/models/mascot.glb"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

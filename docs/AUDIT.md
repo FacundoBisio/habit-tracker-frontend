@@ -5,10 +5,10 @@ Alcance: todo el repo (dominio, PWA, API de Atajos, bot, sincronización, seguri
 ## Resultado en números
 | Chequeo | Resultado |
 |---|---|
-| Pruebas unitarias (Vitest) | 136 pasan |
-| Pruebas E2E (Playwright, iPhone 14, Chrome) | 23 pasan |
+| Pruebas unitarias (Vitest) | 138 pasan |
+| Pruebas E2E (Playwright, iPhone 14, Chrome) | 25 pasan |
 | `eslint` / `tsc --noEmit` / `next build` | limpios |
-| Lighthouse móvil (simulación 4× CPU, mediana de 3 corridas) | Rendimiento 80 · Accesibilidad 100 · Buenas prácticas 100 · SEO 100 · CLS 0 · TBT ~340 ms |
+| Lighthouse móvil (simulación 4× CPU, mediana de 3 corridas, con el personaje 3D) | Rendimiento 59 · Accesibilidad 100 · Buenas prácticas 100 · SEO 100 · CLS 0,099 · TBT ~1,4 s (antes del motor único: 52 y ~7,7 s; ver `PROGRESS.md`) |
 
 ## Seguridad
 

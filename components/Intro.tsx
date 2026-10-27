@@ -2,8 +2,10 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Flame, Target, Trophy } from "lucide-react";
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import type { Activity } from "@/lib/mascot";
+import { useMascotKind } from "@/lib/mascot-3d";
+import { MASCOT_TIMEOUT_MS, useMascotStatus } from "@/lib/mascot-engine-state";
 import { MascotFigure } from "./Mascot";
 
 const EASE = [0.32, 0.72, 0, 1] as const;
@@ -36,14 +38,31 @@ const subscribeResize = (cb: () => void) => {
 const ballSize = () => (window.innerHeight < 700 ? 140 : 210);
 const useBallSize = () => useSyncExternalStore(subscribeResize, ballSize, () => 210);
 
-/** La bola, entera y por encima de todo, sube con un resorte desde abajo (sin recortes). */
+/**
+ * ¿Ya se puede mostrar el personaje? Con 3D, cuando el motor terminó de cargar (o falló, o pasó el tiempo
+ * de espera): así sube directamente en 3D y no hay un círculo de pasada.
+ */
+function useCharacterReady() {
+  const kind = useMascotKind();
+  const status = useMascotStatus();
+  const [late, setLate] = useState(false);
+  useEffect(() => {
+    const id = setTimeout(() => setLate(true), MASCOT_TIMEOUT_MS);
+    return () => clearTimeout(id);
+  }, []);
+  if (kind === "pending") return false;
+  return kind === "ball" || status === "ready" || status === "failed" || late;
+}
+
+/** La bola, entera y por encima de todo, sube con un resorte desde abajo (sin recortes). Un solo montaje. */
 function Peek({ activity, reduced, size }: { activity: Activity; reduced: boolean; size: number }) {
+  const go = useCharacterReady();
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-30 flex justify-center">
       <motion.div
         initial={reduced ? { opacity: 0 } : { y: 260 }}
-        animate={reduced ? { opacity: 1 } : { y: 0 }}
-        transition={{ type: "spring", stiffness: 130, damping: 15, delay: reduced ? 0 : 0.55 }}
+        animate={go ? (reduced ? { opacity: 1 } : { y: 0 }) : undefined}
+        transition={{ type: "spring", stiffness: 130, damping: 15, delay: reduced ? 0 : 0.15 }}
       >
         <MascotFigure activity={activity} size={size} interactive={false} />
       </motion.div>
@@ -125,6 +144,13 @@ export function Intro({ onDone }: { onDone: () => void }) {
   const [index, setIndex] = useState(0);
   const last = index === SLIDES - 1;
   const ball = useBallSize();
+  // El intro es opaco: el aura de atrás (animada y con desenfoque) sería GPU desperdiciada
+  useEffect(() => {
+    document.documentElement.dataset.intro = "1";
+    return () => {
+      delete document.documentElement.dataset.intro;
+    };
+  }, []);
   const go = (n: number) => setIndex(Math.max(0, Math.min(SLIDES - 1, n)));
 
   return (
@@ -148,16 +174,16 @@ export function Intro({ onDone }: { onDone: () => void }) {
             backgroundImage:
               "radial-gradient(70% 45% at 50% 100%, rgba(61,213,152,0.30), transparent), radial-gradient(60% 35% at 0% 0%, rgba(61,213,152,0.10), transparent)",
           }}
-          initial={reduced ? { opacity: 0 } : { clipPath: "circle(0% at 50% 92%)" }}
-          animate={reduced ? { opacity: 1 } : { clipPath: "circle(150% at 50% 92%)" }}
-          exit={{ opacity: 1, transition: { duration: reduced ? 0.2 : 0.7 } }}
-          transition={{ duration: reduced ? 0.2 : 0.7, ease: EASE }}
+          initial={reduced ? { opacity: 0 } : { opacity: 0, x: 48 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 1, transition: { duration: reduced ? 0.2 : 0.45 } }}
+          transition={{ duration: reduced ? 0.2 : 0.45, ease: EASE }}
         >
           {index === 0 ? <SlideOne reduced={reduced} /> : <SlideTwo reduced={reduced} />}
         </motion.section>
       </AnimatePresence>
 
-      <Peek key={index} activity={index === 0 ? "wave" : "lift"} reduced={reduced} size={ball} />
+      <Peek activity={index === 0 ? "wave" : "lift"} reduced={reduced} size={ball} />
 
       {/* Controles: sobre las pantallas, encima de la bola */}
       <button

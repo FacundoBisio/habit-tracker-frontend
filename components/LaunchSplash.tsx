@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { preloadMascot } from "@/lib/mascot-engine-state";
 import { useSessionFlag } from "@/lib/session-flag";
 import { MascotFigure } from "./Mascot";
 
@@ -18,7 +19,7 @@ const reducedNow = () => window.matchMedia("(prefers-reduced-motion: reduce)").m
 
 /**
  * Splash de arranque, una vez por sesión del navegador: la bola aparece de un salto, el nombre
- * entra letra por letra y un revelado circular deja ver la app. Se renderiza solo en el cliente
+ * entra letra por letra y un fundido deja ver la app. Se renderiza solo en el cliente
  * (no está en el HTML del servidor, así no afecta al LCP) y se omite con "menos movimiento".
  */
 export function LaunchSplash() {
@@ -29,6 +30,7 @@ export function LaunchSplash() {
 
   useEffect(() => {
     if (skip) return;
+    void preloadMascot(); // aprovecha el segundo del splash para tener el 3D listo
     const open = setTimeout(() => setPhase("out"), HOLD_MS);
     const failsafe = setTimeout(markShown, 2400); // por si la animación de salida no llega a completarse
     return () => {
@@ -46,9 +48,9 @@ export function LaunchSplash() {
       aria-hidden
       className={`fixed inset-0 z-[90] grid place-items-center bg-[#090c0a] ${phase === "out" ? "pointer-events-none" : ""}`}
       style={{ backgroundImage: "radial-gradient(60% 40% at 50% 60%, rgba(61,213,152,0.28), transparent)" }}
-      initial={{ clipPath: "circle(150% at 50% 55%)" }}
-      animate={{ clipPath: phase === "out" ? "circle(0% at 50% 55%)" : "circle(150% at 50% 55%)" }}
-      transition={{ duration: 0.6, ease: EASE }}
+      initial={{ opacity: 1, scale: 1 }}
+      animate={phase === "out" ? { opacity: 0, scale: 1.08 } : { opacity: 1, scale: 1 }}
+      transition={{ duration: 0.5, ease: EASE }}
       onAnimationComplete={() => {
         if (phase === "out") markShown();
       }}

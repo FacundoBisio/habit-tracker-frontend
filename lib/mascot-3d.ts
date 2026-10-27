@@ -73,9 +73,15 @@ const subscribe = (cb: () => void) => {
 const snapshot = () =>
   readMascotMode() === "3d" && webglSupported() && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-/** ¿Hay que mostrar el personaje 3D? Sí, si el usuario lo eligió, hay WebGL 2 y no pidió menos movimiento. */
-export function useMascot3dEnabled(): boolean {
-  return useSyncExternalStore(subscribe, snapshot, () => false);
+export type MascotKind = "pending" | "3d" | "ball";
+
+/**
+ * Qué personaje corresponde: la esfera 3D si el usuario la eligió, hay WebGL 2 y no pidió menos movimiento;
+ * si no, la bola 2D. Mientras se hidrata devuelve "pending" (la caja se reserva vacía): así nunca se ve la
+ * bola 2D de pasada para después reemplazarla por el 3D.
+ */
+export function useMascotKind(): MascotKind {
+  return useSyncExternalStore(subscribe, () => (snapshot() ? "3d" : "ball"), () => "pending");
 }
 
 /** Para Ajustes: ¿el dispositivo puede mostrar 3D? */

@@ -2,9 +2,10 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import dynamic from "next/dynamic";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ACTIVITY_LABEL, useActivityOverride, type Activity } from "@/lib/mascot";
-import { useMascot3dEnabled } from "@/lib/mascot-3d";
+import { useMascotKind } from "@/lib/mascot-3d";
+import { MASCOT_TIMEOUT_MS, isMascotReady, useMascotStatus } from "@/lib/mascot-engine-state";
 
 /**
  * Bola verde con cara: es lo que se ve mientras carga la esfera 3D, y lo único que se ve si el
@@ -64,32 +65,30 @@ const Mascot3D = dynamic(() => import("./Mascot3D"), { ssr: false });
 
 /**
  * Personaje del usuario: la esfera 3D si el dispositivo tiene WebGL 2, el usuario no pidió "menos
- * movimiento" y eligió 3D; si no (o mientras carga / si falla), la bola verde.
+ * movimiento" y eligió 3D; si no, la bola verde. Con el 3D se reserva la caja vacía mientras carga (nunca se
+ * muestra la bola de pasada); la bola aparece solo si el 3D falla, se pierde el contexto o tarda más de
+ * `MASCOT_TIMEOUT_MS` (en ese caso se queda así en esa pantalla, sin fundido tardío).
  */
 export function MascotFigure({ activity, size = 128, interactive = true }: { activity: Activity; size?: number; interactive?: boolean }) {
-  const enabled = useMascot3dEnabled();
-  const [ready, setReady] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const kind = useMascotKind();
+  const status = useMascotStatus();
+  const [timedOut, setTimedOut] = useState(false);
 
-  if (!enabled || failed) return <BallFigure activity={activity} size={size} />;
+  useEffect(() => {
+    if (kind !== "3d") return;
+    const id = setTimeout(() => {
+      if (!isMascotReady()) setTimedOut(true);
+    }, MASCOT_TIMEOUT_MS);
+    return () => clearTimeout(id);
+  }, [kind]);
+
+  const box = { width: size, height: size * 0.875 };
+  if (kind === "pending") return <div className="shrink-0" style={box} aria-hidden />;
+  if (kind === "ball" || timedOut || status === "failed" || status === "lost") return <BallFigure activity={activity} size={size} />;
 
   return (
-    <div className="relative shrink-0" style={{ width: size, height: size * 0.875 }}>
-      <AnimatePresence>
-        {!ready && (
-          <motion.div key="ball" className="absolute inset-0" exit={{ opacity: 0, transition: { duration: 0.3 } }}>
-            <BallFigure activity={activity} size={size} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-      <Mascot3D
-        activity={activity}
-        size={size}
-        interactive={interactive}
-        ready={ready}
-        onReady={() => setReady(true)}
-        onError={() => setFailed(true)}
-      />
+    <div className="relative shrink-0" style={box}>
+      <Mascot3D activity={activity} size={size} interactive={interactive} />
     </div>
   );
 }
