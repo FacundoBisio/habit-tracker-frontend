@@ -4,7 +4,8 @@ import { toast } from "@/lib/notify";
 import { saveName } from "@/lib/store/actions";
 import { apiFetch, loadSupabase } from "@/lib/supabase/browser";
 import { db, withRemote, type Entry, type Goal, type Habit } from "@/lib/store/db";
-import { planProgress, planPull, planPush } from "./plan";
+import { planProgress, planPull } from "./plan";
+import { pushOutbox } from "./push";
 
 export type SyncStatus = "off" | "syncing" | "synced" | "pending" | "error";
 
@@ -79,36 +80,29 @@ export async function syncOnce(): Promise<SyncStatus> {
   if (firstSync) await enqueueEverything();
 
   const rows = await db.outbox.toArray();
-  const plan = planPush(rows.map((r) => ({ ...r, seq: r.seq! })));
   const settings = (await db.settings.get("me")) ?? { timezone: "America/Argentina/Cordoba", weekStartsOn: 1 };
+  const tables = { habit: db.habits, entry: db.entries, goal: db.goals } as const;
 
-  const [habits, entries, goals] = await Promise.all([
-    db.habits.bulkGet(plan.upserts.habit),
-    db.entries.bulkGet(plan.upserts.entry),
-    db.goals.bulkGet(plan.upserts.goal),
-  ]);
-
-  const push = await apiFetch("/api/sync", {
-    method: "POST",
-    body: JSON.stringify({
-      habits: habits.filter(Boolean),
-      entries: entries.filter(Boolean),
-      goals: goals.filter(Boolean).map((g) => ({ ...g!, completedAt: undefined })),
-      deleted: { habits: plan.deletes.habit, entries: plan.deletes.entry, goals: plan.deletes.goal },
-      settings: {
-        timezone: settings.timezone,
-        weekStartsOn: settings.weekStartsOn === 0 || settings.weekStartsOn === 6 ? settings.weekStartsOn : 1,
-        // La primera vez no se pisa el nombre que ya tenga la cuenta: se pregunta después (ver abajo)
-        ...(!firstSync && "name" in settings && settings.name ? { displayName: settings.name, displayNameUpdatedAt: settings.nameUpdatedAt } : {}),
-      },
-    }),
-  });
-  if (push.status === 401) {
+  // En tandas: una importación grande (o el primer inicio de sesión con mucha historia) no entra en un solo pedido.
+  const push = await pushOutbox(
+    rows.map((r) => ({ ...r, seq: r.seq! })),
+    {
+      timezone: settings.timezone,
+      weekStartsOn: settings.weekStartsOn === 0 || settings.weekStartsOn === 6 ? settings.weekStartsOn : 1,
+      // La primera vez no se pisa el nombre que ya tenga la cuenta: se pregunta después (ver abajo)
+      ...(!firstSync && "name" in settings && settings.name ? { displayName: settings.name, displayNameUpdatedAt: settings.nameUpdatedAt } : {}),
+    },
+    {
+      load: (kind, ids) => (tables[kind] as typeof db.habits).bulkGet(ids),
+      post: (body) => apiFetch("/api/sync", { method: "POST", body: JSON.stringify(body) }),
+      done: (seqs) => db.outbox.bulkDelete(seqs),
+    },
+  );
+  if (push.status === "unauthorized") {
     await endSession();
     return "off";
   }
-  if (!push.ok) return "error";
-  await db.outbox.bulkDelete(rows.map((r) => r.seq!));
+  if (push.status === "error") return "error";
 
   const pull = await apiFetch("/api/sync");
   if (pull.status === 401) {
