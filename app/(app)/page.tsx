@@ -18,7 +18,9 @@ import { fireParty } from "@/lib/confetti";
 import { addDays } from "@/lib/domain/dates";
 import { activityFor, playActivity } from "@/lib/mascot";
 import { toast } from "@/lib/notify";
-import { adjustDay, logEntry, undoEntries } from "@/lib/store/actions";
+import { addHabit, adjustDay, logEntry, undoEntries } from "@/lib/store/actions";
+import { HABIT_TEMPLATES, type HabitTemplate } from "@/lib/habit-templates";
+import { HabitIcon } from "@/components/HabitIcon";
 import type { Habit } from "@/lib/store/db";
 import { useSettings } from "@/lib/store/hooks";
 import { useDaySummary, type DayRow } from "@/lib/store/day";
@@ -94,6 +96,13 @@ export default function TodayPage() {
     }
   }
 
+  async function addTemplate(t: HabitTemplate) {
+    const { name, emoji, kind, unit, defaultAmount, schedule } = t;
+    await addHabit({ name, emoji, kind, unit, defaultAmount, schedule, color: "green" });
+    playActivity(activityFor(t.emoji));
+    toast.success(`${t.name} agregado`, { icon: t.emoji });
+  }
+
   async function adjust(row: DayRow, delta: number) {
     const { habit } = row;
     playActivity(activityFor(habit.emoji));
@@ -162,9 +171,26 @@ export default function TodayPage() {
       ) : !hasHabits ? (
         <div className="card card-lg p-8 text-center">
           <span className="chip mx-auto grid size-16 place-items-center rounded-3xl"><Sprout className="size-8" strokeWidth={1.8} /></span>
-          <h2 className="font-display mt-4 text-xl font-semibold tracking-tight">Empezá con tu primer hábito</h2>
-          <p className="mt-1.5 mb-6 text-sm text-muted">Un toque por día alcanza. Después sumás objetivos.</p>
-          <button className={primaryBtn} onClick={() => setFormOpen(true)} data-tour="crear-habito">Crear hábito</button>
+          <h2 className="font-display mt-4 text-xl font-semibold tracking-tight">¿Qué querés arrancar?</h2>
+          <p className="mt-1.5 mb-5 text-sm text-muted">Elegí uno con un toque o creá el tuyo. Después lo podés cambiar.</p>
+          <div data-tour="crear-habito">
+            <ul className="mb-5 flex flex-wrap justify-center gap-2" aria-label="Hábitos para empezar">
+              {HABIT_TEMPLATES.map((t) => (
+                <li key={t.name}>
+                  <button
+                    onClick={() => void addTemplate(t)}
+                    className="flex min-h-11 items-center gap-2 rounded-full border border-border px-3.5 text-left text-sm font-medium transition hover:border-accent active:scale-[0.98]"
+                    aria-label={`Agregar ${t.name}, ${t.hint}`}
+                  >
+                    <HabitIcon value={t.emoji} className="size-4 shrink-0" />
+                    <span>{t.name}</span>
+                    <span className="text-xs font-normal text-muted">{t.hint}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <button className={primaryBtn} onClick={() => setFormOpen(true)}>Crear hábito</button>
+          </div>
         </div>
       ) : (
         <>

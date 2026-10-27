@@ -68,7 +68,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("registrar un hábito, ver el progreso del día y deshacer", async ({ page }) => {
-  await expect(page.getByRole("heading", { name: "Empezá con tu primer hábito" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "¿Qué querés arrancar?" })).toBeVisible();
   await createHabit(page, { name: "Meditar" });
 
   await expect(dayProgress(page)).toHaveAttribute("aria-valuenow", "0");
@@ -301,7 +301,7 @@ test("recorrido guiado: arranca después de la bienvenida, espera el primer háb
   await nameInput(page).fill(NAME);
   await page.getByRole("button", { name: "Empezar" }).click();
   const tour = page.getByRole("dialog", { name: "Recorrido guiado" });
-  await expect(tour).toContainText("Primero creá tu primer hábito");
+  await expect(tour).toContainText("Elegí un hábito para arrancar");
   await expect(tour.getByRole("button", { name: "Siguiente" })).toBeDisabled();
 
   // Crear el hábito: el recorrido se esconde con el popup y sigue solo
@@ -662,4 +662,13 @@ test("Stats: el mapa de calor arranca en el mes en que empezaste y se ve lo reci
   const box = await map.evaluate((el) => ({ scroll: el.scrollWidth - el.clientWidth }));
   expect(box.scroll).toBeLessThanOrEqual(0);
   await expect(map.locator('[title$=": 1"]')).toBeVisible();
+});
+
+test("pantalla vacía: un toque en una plantilla crea el hábito listo para usar", async ({ page }) => {
+  await expect(page.getByRole("heading", { name: "¿Qué querés arrancar?" })).toBeVisible();
+  await page.getByRole("button", { name: /^Agregar Gimnasio/ }).click();
+  await expect(habitRow(page, "Gimnasio")).toBeVisible();
+  await expect(page.getByText("0/3 esta semana")).toBeVisible();
+  await habitRow(page, "Gimnasio").click();
+  await expect(habitRow(page, "Gimnasio")).toHaveAccessibleName(/hecho/i);
 });

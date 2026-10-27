@@ -30,7 +30,7 @@ export interface TourStep {
 }
 
 export const TOUR_STEPS: TourStep[] = [
-  { id: "crear", anchor: "crear-habito", text: "Primero creá tu primer hábito. Tocá acá.", activity: "wave", waitFor: "habit", onlyWithoutHabits: true },
+  { id: "crear", anchor: "crear-habito", text: "Elegí un hábito para arrancar o creá el tuyo.", activity: "wave", waitFor: "habit", onlyWithoutHabits: true },
   { id: "tocar", anchor: "fila-habito", text: "Tocá un hábito para marcarlo hecho. Mirá lo que hago.", activity: "wave" },
   { id: "mantener", anchor: "fila-habito", text: "Mantené presionado para corregir la cantidad o ver el detalle.", activity: "idle" },
   { id: "anillo", anchor: "anillo", text: "Este anillo es tu avance de hoy.", activity: "celebrate" },
