@@ -5,7 +5,7 @@ import type { ServerGoal } from "@/lib/server/repo";
 import { createRateLimiter } from "@/lib/server/security";
 import type { InlineButton, ReplyMarkup, TelegramClient, TelegramUpdate } from "./api";
 import { handleUpdate, type BotDeps } from "./handler";
-import { runReminders } from "./reminders";
+import { MAINTENANCE_UTC_HOUR, PENDING_TTL_MS, runCronTick, runReminders } from "./reminders";
 import { handleWebhook, isCronAuthorized } from "./webhook";
 
 const USER = "user-1";
@@ -319,5 +319,42 @@ describe("webhook y recordatorios", () => {
     expect(await runReminders({ repo: s.repo, tg: s.tg, now: () => sunday })).toBe(1);
     expect(s.sent.some((m) => m.text.includes("Te falta hoy"))).toBe(false);
     expect(s.last().text).toContain("Resumen de la semana");
+  });
+});
+
+describe("mantenimiento diario (cron)", () => {
+  // La memoria fecha las pendientes con el reloj real: el test usa el reloj real también.
+  const DAY = 86_400_000;
+
+  it("purgeStale borra códigos vencidos o usados y pendientes viejas; deja lo vigente", async () => {
+    const repo = createMemoryRepo();
+    const now = new Date();
+    await repo.createLinkCode("u1", "OLD111", new Date(now.getTime() - 60_000));
+    await repo.createLinkCode("u1", "USED22", new Date(now.getTime() + 10 * 60_000));
+    await repo.consumeLinkCode("USED22", "c1", now);
+    await repo.createLinkCode("u2", "LIVE33", new Date(now.getTime() + 10 * 60_000));
+    const pid = await repo.savePending("u1", "c1", { rawInput: "agua" });
+
+    expect(await repo.purgeStale({ now, pendingBefore: new Date(now.getTime() - PENDING_TTL_MS) })).toEqual({ linkCodes: 2, pending: 0 });
+    // El código vigente sigue sirviendo y la pendiente reciente también.
+    expect(await repo.consumeLinkCode("LIVE33", "c2", now)).toBe("u2");
+    const later = new Date(now.getTime() + PENDING_TTL_MS + DAY);
+    expect(await repo.purgeStale({ now: later, pendingBefore: new Date(later.getTime() - PENDING_TTL_MS) })).toEqual({ linkCodes: 1, pending: 1 });
+    expect(await repo.takePending(pid, "c1")).toBeNull();
+  });
+
+  it("el tick del cron purga solo en el minuto de mantenimiento diario", async () => {
+    const repo = createMemoryRepo();
+    const t = fakeTelegram();
+    const base = new Date();
+    await repo.savePending("u1", "c1", {});
+    // Un minuto cualquiera (no el de mantenimiento) varios días después: no purga.
+    const offMinute = new Date(base.getTime() + 3 * DAY);
+    offMinute.setUTCHours(MAINTENANCE_UTC_HOUR, 1, 0, 0);
+    expect((await runCronTick({ repo, tg: t.tg, now: () => offMinute })).purged).toBeNull();
+    // El minuto de mantenimiento: purga.
+    const onMinute = new Date(offMinute);
+    onMinute.setUTCMinutes(0);
+    expect((await runCronTick({ repo, tg: t.tg, now: () => onMinute })).purged).toEqual({ linkCodes: 0, pending: 1 });
   });
 });

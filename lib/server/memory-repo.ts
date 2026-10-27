@@ -17,7 +17,7 @@ export function createMemoryRepo(seed?: { goals?: (ServerGoal & { userId: string
   const settings = new Map<string, ServerSettings>();
   const tokens: { id: string; userId: string; name: string; hash: string; lastUsedAt: Date | null; revokedAt: Date | null; createdAt: Date }[] = [];
   const codes: { userId: string; code: string; expiresAt: Date; usedAt?: Date }[] = [];
-  const pending = new Map<string, { userId: string; chatId: string; payload: unknown }>();
+  const pending = new Map<string, { userId: string; chatId: string; payload: unknown; createdAt: Date }>();
   let seq = 0;
   const id = () => `00000000-0000-4000-8000-${String(++seq).padStart(12, "0")}`;
 
@@ -128,7 +128,7 @@ export function createMemoryRepo(seed?: { goals?: (ServerGoal & { userId: string
     },
     async savePending(userId, chatId, payload) {
       const pid = id();
-      pending.set(pid, { userId, chatId, payload });
+      pending.set(pid, { userId, chatId, payload, createdAt: new Date() });
       return pid;
     },
     async takePending(pid, chatId) {
@@ -136,6 +136,23 @@ export function createMemoryRepo(seed?: { goals?: (ServerGoal & { userId: string
       if (!p || p.chatId !== chatId) return null;
       pending.delete(pid);
       return { userId: p.userId, payload: p.payload };
+    },
+    async purgeStale({ now, pendingBefore }) {
+      let linkCodes = 0;
+      for (let i = codes.length - 1; i >= 0; i--) {
+        if (codes[i].usedAt || codes[i].expiresAt <= now) {
+          codes.splice(i, 1);
+          linkCodes++;
+        }
+      }
+      let purged = 0;
+      for (const [pid, p] of pending) {
+        if (p.createdAt < pendingBefore) {
+          pending.delete(pid);
+          purged++;
+        }
+      }
+      return { linkCodes, pending: purged };
     },
     async deleteUserData(userId) {
       const drop = <T extends { userId: string }>(list: T[]) => {

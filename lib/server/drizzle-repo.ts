@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lte } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, or } from "drizzle-orm";
 import type { WeekStart } from "@/lib/domain/types";
 import { getDb } from "@/lib/db/client";
 import * as t from "@/lib/db/schema";
@@ -288,6 +288,18 @@ export function createDrizzleRepo(): Repo {
         .where(and(eq(t.botPending.id, id), eq(t.botPending.chatId, chatId)))
         .returning({ userId: t.botPending.userId, payload: t.botPending.payload });
       return row ?? null;
+    },
+
+    async purgeStale({ now, pendingBefore }) {
+      const codes = await db
+        .delete(t.linkCodes)
+        .where(or(isNotNull(t.linkCodes.usedAt), lte(t.linkCodes.expiresAt, now)))
+        .returning({ id: t.linkCodes.id });
+      const pend = await db
+        .delete(t.botPending)
+        .where(lt(t.botPending.createdAt, pendingBefore))
+        .returning({ id: t.botPending.id });
+      return { linkCodes: codes.length, pending: pend.length };
     },
   };
   return repo;

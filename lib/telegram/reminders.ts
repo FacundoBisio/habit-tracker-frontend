@@ -8,6 +8,36 @@ import { goalsText, weekText } from "./texts";
 
 type Deps = { repo: Repo; tg: TelegramClient; now: () => Date };
 
+/** Las confirmaciones del bot que nadie tocó en 2 días ya no sirven: se borran. */
+export const PENDING_TTL_MS = 2 * 86_400_000;
+/** Minuto del día (UTC) en que el cron de cada minuto hace además la limpieza: 07:00 UTC = 04:00 en Argentina. */
+export const MAINTENANCE_UTC_HOUR = 7;
+
+export const isMaintenanceMinute = (now: Date) => now.getUTCHours() === MAINTENANCE_UTC_HOUR && now.getUTCMinutes() === 0;
+
+/** Limpieza diaria: códigos de vinculación usados/vencidos y confirmaciones del bot abandonadas. */
+export function purgeStale(repo: Repo, now: Date) {
+  return repo.purgeStale({ now, pendingBefore: new Date(now.getTime() - PENDING_TTL_MS) });
+}
+
+/**
+ * Un tick del cron (cada minuto): recordatorios y, una vez por día, la limpieza. Si la limpieza
+ * falla no afecta a los recordatorios (y al revés).
+ */
+export async function runCronTick(deps: Deps) {
+  const sent = await runReminders(deps);
+  let purged: Awaited<ReturnType<typeof purgeStale>> | null = null;
+  const now = deps.now();
+  if (isMaintenanceMinute(now)) {
+    try {
+      purged = await purgeStale(deps.repo, now);
+    } catch (err) {
+      console.error("[cron] falló la limpieza:", err instanceof Error ? err.message : err);
+    }
+  }
+  return { sent, purged };
+}
+
 /**
  * Se invoca cada minuto (pg_cron + pg_net, o GitHub Actions). Envía el recordatorio a quienes tienen
  * la hora configurada ahora mismo en su zona; los domingos agrega el resumen semanal.

@@ -112,6 +112,12 @@ export interface Repo {
   savePending(userId: string, chatId: string, payload: unknown): Promise<string>;
   takePending(id: string, chatId: string): Promise<{ userId: string; payload: unknown } | null>;
 
+  /**
+   * Limpieza periódica (cron diario): borra códigos de vinculación usados o vencidos a `now` y
+   * confirmaciones del bot creadas antes de `pendingBefore`. Devuelve cuántas filas borró.
+   */
+  purgeStale(input: { now: Date; pendingBefore: Date }): Promise<{ linkCodes: number; pending: number }>;
+
   /** Borra TODO lo del usuario (hábitos, registros, objetivos, ajustes, tokens, códigos, pendientes). Idempotente. */
   deleteUserData(userId: string): Promise<void>;
   /** Desvincula Telegram: borra el chat y apaga los recordatorios. */
