@@ -19,6 +19,13 @@ export default function StatsPage() {
 
   const habit = habits.find((h) => h.id === pick) ?? habits[0];
 
+  // Primer día con algún registro (de cualquier hábito): el mapa de calor arranca en ese mes.
+  const firstDate = useMemo(() => {
+    let first: string | undefined;
+    for (const e of entries) if (!first || e.localDate < first) first = e.localDate;
+    return first;
+  }, [entries]);
+
   const data = useMemo(() => {
     if (!habit) return null;
     const totals = new Map<string, number>();
@@ -75,8 +82,8 @@ export default function StatsPage() {
             <Stat label="Cumplimiento 90 d" value={data.c90} suffix="%" />
           </div>
           <section className="card p-4">
-            <h2 className="mb-3 text-sm font-medium text-muted">Último año · total {Math.round(data.total * 10) / 10} {unitLabel}</h2>
-            <Heatmap totals={data.totals} today={today} weekStartsOn={settings.weekStartsOn} />
+            <h2 className="mb-3 text-sm font-medium text-muted">Historial · total {Math.round(data.total * 10) / 10} {unitLabel}</h2>
+            <Heatmap totals={data.totals} today={today} firstDate={firstDate} weekStartsOn={settings.weekStartsOn} />
           </section>
         </div>
       )}
