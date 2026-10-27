@@ -44,7 +44,8 @@ Todas las rutas requieren `Authorization: Bearer <token>`. Agregá `?format=text
 1. **Dictar texto** (idioma Español (Argentina)) → resultado `Dictado`.
 2. **Obtener contenido de URL**: `POST` a `URLBase/api/quick/ingest?format=text`, cuerpo JSON `text` = `Dictado`, `confirm` = **Booleano** `No`.
 3. **Mostrar alerta**: título «¿Registro esto?», mensaje = resultado de la acción anterior (muestra «Entendí: …»). Dejá los botones **Cancelar** / **OK**; si cancelás el Atajo se detiene.
-4. **Obtener contenido de URL**: igual que el paso 2 pero con `confirm` = `Sí`. Para que un reintento no duplique, agregá antes una acción **Número aleatorio** o usá **Fecha actual** y pasá un `client_id` UUID (opcional: sin `client_id` el servidor usa el texto + el día).
+4. **Obtener contenido de URL**: igual que el paso 2 pero con `confirm` = `Sí` y un campo **Texto** `client_id` con un UUID nuevo por ejecución (**recomendado**). Una forma sin apps extra: al principio del Atajo, **Número aleatorio** entre `100000000000` y `999999999999` → `Azar`, y una acción **Texto** `{Fecha actual con formato personalizado yyyyMMdd}-{Fecha actual con formato HHmm}-4{Fecha actual con formato SSS}-8000-{Azar}` → variable `IdRegistro`. Con el mismo `client_id` un reintento de red **no duplica**; dos ejecuciones distintas sí registran dos veces.
+   Sin `client_id` el servidor solo descarta reintentos inmediatos: el mismo texto dentro del mismo minuto cuenta una vez; repetido más tarde (aunque sea el mismo día) se registra de nuevo.
 5. **Mostrar resultado**.
 6. Nombre del Atajo: **Contale a mi tracker**. Decí «Oye Siri, contale a mi tracker».
 

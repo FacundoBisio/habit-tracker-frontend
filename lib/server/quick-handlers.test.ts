@@ -9,7 +9,7 @@ const USER = "user-1";
 // 2026-03-11 02:30 UTC = martes 10 de marzo 23:30 en Argentina
 const NOW = new Date("2026-03-11T02:30:00Z");
 
-async function setup(limit = 100) {
+async function setup(limit = 100, now: () => Date = () => NOW) {
   const goals: (ServerGoal & { userId: string })[] = [];
   const repo = createMemoryRepo({ goals });
   const water = await repo.createHabit(USER, { name: "Agua", emoji: "💧", color: "teal", kind: "quantity", unit: "vasos", defaultAmount: 1, schedule: { type: "daily" }, aliases: ["vaso"] });
@@ -20,7 +20,7 @@ async function setup(limit = 100) {
   });
   const { token, hash } = generateToken();
   await repo.createToken(USER, "iPhone", hash);
-  const handlers = createQuickHandlers({ repo, parser: rulesParser, limiter: createRateLimiter(limit, 60_000), now: () => NOW });
+  const handlers = createQuickHandlers({ repo, parser: rulesParser, limiter: createRateLimiter(limit, 60_000), now });
   return { repo, handlers, token, water, gym };
 }
 
@@ -129,6 +129,26 @@ describe("POST /api/quick/ingest", () => {
     await handlers.ingest(req("ingest", token, body));
     await handlers.ingest(req("ingest", token, body));
     expect(await repo.listEntries(USER)).toHaveLength(2);
+  });
+
+  it("sin client_id: el mismo texto dos veces el mismo día (separado >60 s) registra dos veces", async () => {
+    let now = NOW;
+    const { handlers, token, repo } = await setup(100, () => now);
+    await handlers.ingest(req("ingest", token, { text: "agua 1", confirm: true }));
+    now = new Date(NOW.getTime() + 5 * 60_000);
+    const json = await (await handlers.ingest(req("ingest", token, { text: "agua 1", confirm: true }))).json();
+    expect(json.text).not.toContain("ya estaba registrado");
+    expect(await repo.listEntries(USER)).toHaveLength(2);
+  });
+
+  it("sin client_id: un reintento inmediato (mismo minuto) no duplica", async () => {
+    let now = NOW;
+    const { handlers, token, repo } = await setup(100, () => now);
+    await handlers.ingest(req("ingest", token, { text: "agua 1", confirm: true }));
+    now = new Date(NOW.getTime() + 10_000);
+    const json = await (await handlers.ingest(req("ingest", token, { text: "agua 1", confirm: true }))).json();
+    expect(json.text).toContain("ya estaba registrado");
+    expect(await repo.listEntries(USER)).toHaveLength(1);
   });
 
   it("informa hábitos que no matchean", async () => {

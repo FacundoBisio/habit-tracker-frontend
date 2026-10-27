@@ -163,8 +163,10 @@ export function createQuickHandlers(deps: QuickDeps) {
         });
       }
 
-      // Idempotencia: mismo client_id (o mismo texto el mismo día) + índice → mismo client_id por ítem.
-      const seed = client_id ?? `${text}|${today}`;
+      // Idempotencia: mismo client_id + índice → mismo client_id por ítem. Sin client_id solo
+      // deduplicamos reintentos inmediatos (mismo texto dentro del mismo minuto): dos registros
+      // iguales y deliberados el mismo día ("agua 1" a la mañana y a la tarde) cuentan los dos.
+      const seed = client_id ?? `${text}|${Math.floor(now.getTime() / 60_000)}`;
       const lines: string[] = [];
       const completedAll: string[] = [];
       for (const [i, r] of resolved.entries()) {
