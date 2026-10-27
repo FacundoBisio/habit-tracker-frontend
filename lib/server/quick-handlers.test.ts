@@ -105,6 +105,51 @@ describe("POST /api/quick/log", () => {
     expect((await handlers.log(req("log", token, { amount: 1 }))).status).toBe(400);
   });
 
+  it("date: rechaza más de un año atrás y más allá de mañana; acepta hace un año y mañana", async () => {
+    const { handlers, token, repo } = await setup();
+    // hoy local = 2026-03-10
+    const old = await handlers.log(req("log", token, { habit: "agua", date: "2025-03-08" }));
+    expect(old.status).toBe(400);
+    expect((await old.json()).text).toContain("más de un año");
+    expect((await handlers.log(req("log", token, { habit: "agua", date: "2026-03-12" }))).status).toBe(400);
+    expect((await handlers.log(req("log", token, { habit: "agua", date: "2025-03-10" }))).status).toBe(200);
+    expect((await handlers.log(req("log", token, { habit: "agua", date: "2026-03-11" }))).status).toBe(200);
+    expect(await repo.listEntries(USER)).toHaveLength(2);
+  });
+
+  it("cuerpo > 16 KB → 413 (por content-length o por lo leído) y no escribe", async () => {
+    const { handlers, token, repo } = await setup();
+    const big = { habit: "agua", note: "x".repeat(17_000) };
+    const declared = await handlers.log(req("log", token, big));
+    expect(declared.status).toBe(413);
+
+    // Sin content-length (stream): se corta al leer.
+    const bytes = new TextEncoder().encode(JSON.stringify({ text: "agua 1", confirm: true, pad: "y".repeat(20_000) }));
+    const stream = new ReadableStream<Uint8Array>({
+      start(c) {
+        for (let i = 0; i < bytes.length; i += 1024) c.enqueue(bytes.slice(i, i + 1024));
+        c.close();
+      },
+    });
+    const streamed = new Request("http://localhost/api/quick/ingest", {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: stream,
+      duplex: "half",
+    } as RequestInit);
+    expect(streamed.headers.get("content-length")).toBeNull();
+    expect((await handlers.ingest(streamed)).status).toBe(413);
+
+    // Un content-length mentiroso (chico) tampoco alcanza: cuenta lo leído.
+    const lying = new Request("http://localhost/api/quick/log", {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json", "content-length": "10" },
+      body: JSON.stringify(big),
+    });
+    expect((await handlers.log(lying)).status).toBe(413);
+    expect(await repo.listEntries(USER)).toHaveLength(0);
+  });
+
   it("devuelve texto plano si se pide", async () => {
     const { handlers, token } = await setup();
     const res = await handlers.log(req("log", token, { habit: "gym" }, "?format=text"));

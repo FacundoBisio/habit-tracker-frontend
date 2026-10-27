@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { toLocalDate } from "@/lib/domain/dates";
+import { addDays, toLocalDate } from "@/lib/domain/dates";
 import { resolveHabit } from "@/lib/domain/match";
 import { resolveItems, type NLParser } from "@/lib/nl/types";
 import type { Repo, ServerHabit } from "./repo";
@@ -53,10 +53,45 @@ async function authenticate(req: Request, deps: QuickDeps): Promise<{ userId: st
   return { userId: token.userId };
 }
 
+/** Tope del cuerpo de los endpoints rápidos: lo legítimo pesa unos cientos de bytes. */
+export const MAX_BODY_BYTES = 16 * 1024;
+
+/**
+ * Lee el cuerpo como texto cortando en `max` bytes. Mira `content-length` (rechazo barato) y además
+ * cuenta lo realmente leído: el header puede faltar (chunked) o mentir.
+ */
+async function readLimitedText(req: Request, max: number): Promise<string | null> {
+  const declared = Number(req.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > max) return null;
+  if (!req.body) return "";
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > max) {
+      await reader.cancel().catch(() => {});
+      return null;
+    }
+    chunks.push(value);
+  }
+  const buf = new Uint8Array(total);
+  let off = 0;
+  for (const c of chunks) {
+    buf.set(c, off);
+    off += c.byteLength;
+  }
+  return new TextDecoder().decode(buf);
+}
+
 async function readJson<T>(req: Request, schema: z.ZodType<T>): Promise<{ data: T } | Response> {
+  const body = await readLimitedText(req, MAX_BODY_BYTES);
+  if (body === null) return respond(req, 413, "El cuerpo es demasiado grande");
   let raw: unknown;
   try {
-    raw = await req.json();
+    raw = JSON.parse(body);
   } catch {
     return respond(req, 400, "El cuerpo debe ser JSON");
   }
@@ -95,7 +130,10 @@ export function createQuickHandlers(deps: QuickDeps) {
       const now = deps.now();
       const settings = await deps.repo.getSettings(auth.userId);
       const today = toLocalDate(now, settings.timezone);
-      if (date && date > today) return respond(req, 400, "La fecha no puede ser futura");
+      // Mismo margen que el parser NL: hasta un año atrás. Mañana se tolera (el reloj o la zona del
+      // dispositivo pueden ir adelantados respecto de la zona configurada); más allá, no.
+      if (date && date > addDays(today, 1)) return respond(req, 400, "La fecha no puede ser futura");
+      if (date && date < addDays(today, -366)) return respond(req, 400, "La fecha no puede ser de hace más de un año");
 
       const habits = (await deps.repo.listHabits(auth.userId)).filter((h) => !h.archived);
       const match = resolveHabit(habits, query);

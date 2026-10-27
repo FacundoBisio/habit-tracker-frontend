@@ -20,7 +20,7 @@ Todas las rutas requieren `Authorization: Bearer <token>`. Agregá `?format=text
 | `POST /api/quick/log` | `{ "habit": "Agua", "amount": 1, "date": "2026-03-10", "note": "…", "client_id": "uuid" }` | `✅ Agua +1 vaso · hoy 5 vasos · Agua marzo 62%` |
 | `POST /api/quick/ingest` | `{ "text": "agua 3 y gym", "confirm": false }` | Con `confirm:false` dice qué entendió; con `true` registra. |
 
-`habit` acepta id, nombre o alias. `amount`, `date`, `note` y `client_id` son opcionales. Con el mismo `client_id` un reintento **no duplica** el registro. Límite: 60 pedidos por minuto por token.
+`habit` acepta id, nombre o alias. `amount`, `date`, `note` y `client_id` son opcionales. Con el mismo `client_id` un reintento **no duplica** el registro. `date` acepta desde hace un año hasta mañana. Límite: 60 pedidos por minuto por token y 16 KB por cuerpo.
 
 ## 1. Atajo por hábito: «Agua +1» (para el widget)
 1. **Atajos → + (nuevo atajo)** → nombralo `Agua +1`.
