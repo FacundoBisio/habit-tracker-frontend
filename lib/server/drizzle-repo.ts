@@ -1,4 +1,6 @@
-import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lte } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
+import type { PgDatabase } from "drizzle-orm/pg-core";
+import type { PostgresJsQueryResultHKT } from "drizzle-orm/postgres-js";
 import type { WeekStart } from "@/lib/domain/types";
 import { getDb } from "@/lib/db/client";
 import * as t from "@/lib/db/schema";
@@ -45,9 +47,19 @@ const toSettings = (r: SettingsRow): ServerSettings => ({
   displayNameUpdatedAt: r.displayNameUpdatedAt?.getTime(),
 });
 
+/** La base o una transacción abierta: los dos sirven para las mismas consultas. */
+type Conn = PgDatabase<PostgresJsQueryResultHKT, typeof t>;
+
+/** Filas por sentencia en las escrituras en bloque (lejos del tope de 65535 parámetros de Postgres). */
+const CHUNK = 500;
+const chunks = <T>(list: T[]): T[][] => Array.from({ length: Math.ceil(list.length / CHUNK) }, (_, i) => list.slice(i * CHUNK, (i + 1) * CHUNK));
+/** Si llega el mismo id dos veces vale el último (un upsert en bloque no puede tocar dos veces la misma fila). */
+const lastById = <T extends { id: string }>(list: T[]): T[] => [...new Map(list.map((x) => [x.id, x])).values()];
+const excluded = (column: string) => sql.raw(`excluded."${column}"`);
+
 /** Implementación de producción. Toda consulta filtra por `user_id` (la conexión bypassa RLS). */
-export function createDrizzleRepo(): Repo {
-  const db = getDb();
+export function createDrizzleRepo(conn?: Conn): Repo {
+  const db: Conn = conn ?? getDb();
 
   const repo: Repo = {
     async listHabits(userId) {
@@ -157,6 +169,104 @@ export function createDrizzleRepo(): Repo {
       if (links.length) {
         await db.insert(t.goalLinks).values(links.map((l) => ({ goalId: goal.id, habitId: l.habitId, weight: l.weight, userId })));
       }
+    },
+
+    async upsertHabits(userId, list) {
+      for (const part of chunks(lastById(list))) {
+        await db
+          .insert(t.habits)
+          .values(part.map((h) => ({ ...h, userId, unit: h.unit ?? null })))
+          .onConflictDoUpdate({
+            target: t.habits.id,
+            set: {
+              name: excluded("name"),
+              emoji: excluded("emoji"),
+              color: excluded("color"),
+              kind: excluded("kind"),
+              unit: excluded("unit"),
+              defaultAmount: excluded("default_amount"),
+              schedule: excluded("schedule"),
+              archived: excluded("archived"),
+              sortOrder: excluded("sort_order"),
+              aliases: excluded("aliases"),
+              updatedAt: new Date(),
+            },
+            // Un id ajeno nunca se pisa
+            setWhere: eq(t.habits.userId, userId),
+          });
+      }
+    },
+
+    async upsertGoals(userId, list) {
+      const owned = new Set<string>();
+      const unique = lastById(list);
+      for (const part of chunks(unique)) {
+        const rows = await db
+          .insert(t.goals)
+          .values(
+            part.map((g) => ({
+              id: g.id,
+              userId,
+              title: g.title,
+              kind: g.kind,
+              targetValue: g.targetValue,
+              unit: g.unit ?? null,
+              periodStart: g.periodStart,
+              periodEnd: g.periodEnd,
+              status: g.status,
+            })),
+          )
+          .onConflictDoUpdate({
+            target: t.goals.id,
+            set: {
+              title: excluded("title"),
+              kind: excluded("kind"),
+              targetValue: excluded("target_value"),
+              unit: excluded("unit"),
+              periodStart: excluded("period_start"),
+              periodEnd: excluded("period_end"),
+              status: excluded("status"),
+              updatedAt: new Date(),
+            },
+            setWhere: eq(t.goals.userId, userId),
+          })
+          .returning({ id: t.goals.id });
+        for (const r of rows) owned.add(r.id);
+      }
+      const ids = [...owned];
+      if (!ids.length) return;
+      await db.delete(t.goalLinks).where(and(eq(t.goalLinks.userId, userId), inArray(t.goalLinks.goalId, ids)));
+      const links = unique
+        .filter((g) => owned.has(g.id))
+        .flatMap((g) => g.links.map((l) => ({ goalId: g.id, habitId: l.habitId, weight: l.weight, userId })));
+      for (const part of chunks(links)) await db.insert(t.goalLinks).values(part);
+    },
+
+    async insertEntries(userId, list) {
+      const stored = new Set<string>();
+      for (const part of chunks(list)) {
+        // Sin target: cualquier choque (clientId repetido o un id ya usado) se saltea en vez de cortar todo
+        const rows = await db
+          .insert(t.entries)
+          .values(part.map((e) => ({ ...e, userId, note: e.note ?? null, rawInput: e.rawInput ?? null })))
+          .onConflictDoNothing()
+          .returning({ clientId: t.entries.clientId });
+        for (const r of rows) stored.add(r.clientId);
+        const missing = part.map((e) => e.clientId).filter((c) => !stored.has(c));
+        if (missing.length) {
+          // Los que ya estaban (reintento del mismo registro) cuentan como guardados
+          const dup = await db
+            .select({ clientId: t.entries.clientId })
+            .from(t.entries)
+            .where(and(eq(t.entries.userId, userId), inArray(t.entries.clientId, missing)));
+          for (const r of dup) stored.add(r.clientId);
+        }
+      }
+      return [...stored];
+    },
+
+    async transaction(fn) {
+      return db.transaction((tx) => fn(createDrizzleRepo(tx)));
     },
 
     async deleteGoals(userId, ids) {

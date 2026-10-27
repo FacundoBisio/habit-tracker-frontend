@@ -21,6 +21,17 @@ export function createMemoryRepo(seed?: { goals?: (ServerGoal & { userId: string
   let seq = 0;
   const id = () => `00000000-0000-4000-8000-${String(++seq).padStart(12, "0")}`;
 
+  const putHabit = (userId: string, habit: ServerHabit) => {
+    const i = habits.findIndex((h) => h.id === habit.id);
+    if (i === -1) habits.push({ ...habit, userId });
+    else if (habits[i].userId === userId) habits[i] = { ...habit, userId };
+  };
+  const putGoal = (userId: string, goal: ServerGoal) => {
+    const i = goals.findIndex((g) => g.id === goal.id);
+    if (i === -1) goals.push({ ...goal, userId });
+    else if (goals[i].userId === userId) goals[i] = { ...goal, userId };
+  };
+
   const repo: Repo = {
     async listHabits(userId) {
       return habits.filter((h) => h.userId === userId).sort((a, b) => a.sortOrder - b.sortOrder);
@@ -59,9 +70,10 @@ export function createMemoryRepo(seed?: { goals?: (ServerGoal & { userId: string
       if (g) g.status = status;
     },
     async upsertHabit(userId, habit) {
-      const i = habits.findIndex((h) => h.id === habit.id);
-      if (i === -1) habits.push({ ...habit, userId });
-      else if (habits[i].userId === userId) habits[i] = { ...habit, userId };
+      putHabit(userId, habit);
+    },
+    async upsertHabits(userId, list) {
+      for (const h of list) putHabit(userId, h);
     },
     async deleteHabits(userId, ids) {
       for (let i = habits.length - 1; i >= 0; i--) {
@@ -72,9 +84,42 @@ export function createMemoryRepo(seed?: { goals?: (ServerGoal & { userId: string
       }
     },
     async upsertGoal(userId, goal) {
-      const i = goals.findIndex((g) => g.id === goal.id);
-      if (i === -1) goals.push({ ...goal, userId });
-      else if (goals[i].userId === userId) goals[i] = { ...goal, userId };
+      putGoal(userId, goal);
+    },
+    async upsertGoals(userId, list) {
+      for (const g of list) putGoal(userId, g);
+    },
+    async insertEntries(userId, list) {
+      const stored: string[] = [];
+      const byClient = new Set(entries.filter((e) => e.userId === userId).map((e) => e.clientId));
+      const ids = new Set(entries.map((e) => e.id));
+      for (const input of list) {
+        if (byClient.has(input.clientId)) {
+          stored.push(input.clientId);
+          continue;
+        }
+        const entry = { ...input, id: input.id ?? id(), userId };
+        if (ids.has(entry.id)) continue; // el id ya lo usa otra fila: no se guarda
+        entries.push(entry);
+        byClient.add(entry.clientId);
+        ids.add(entry.id);
+        stored.push(entry.clientId);
+      }
+      return stored;
+    },
+    async transaction(fn) {
+      // Copia de lo que toca la sincronización; si `fn` falla se restaura.
+      const snap = structuredClone({ habits, entries, goals, settings: [...settings] });
+      try {
+        return await fn(repo);
+      } catch (err) {
+        habits.splice(0, habits.length, ...snap.habits);
+        entries.splice(0, entries.length, ...snap.entries);
+        goals.splice(0, goals.length, ...snap.goals);
+        settings.clear();
+        for (const [k, v] of snap.settings) settings.set(k, v);
+        throw err;
+      }
     },
     async deleteGoals(userId, ids) {
       for (let i = goals.length - 1; i >= 0; i--) {

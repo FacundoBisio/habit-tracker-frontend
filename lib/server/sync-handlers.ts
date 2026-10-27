@@ -116,37 +116,40 @@ export function createSyncHandlers(deps: MeDeps) {
       }
       const { habits, entries, goals, deleted, settings } = parsed.data;
 
-      await deps.repo.deleteEntries(userId, deleted.entries);
-      await deps.repo.deleteGoals(userId, deleted.goals);
-      await deps.repo.deleteHabits(userId, deleted.habits);
+      // Todo o nada, y una escritura por tipo (no una ida y vuelta a la base por fila).
+      const { accepted, rejected } = await deps.repo.transaction(async (repo) => {
+        await repo.deleteEntries(userId, deleted.entries);
+        await repo.deleteGoals(userId, deleted.goals);
+        await repo.deleteHabits(userId, deleted.habits);
 
-      for (const h of habits) await deps.repo.upsertHabit(userId, h as ServerHabit);
-      // Solo se aceptan referencias a hábitos propios: un id ajeno nunca se vincula (ni se borraría en cascada).
-      const mine = new Set((await deps.repo.listHabits(userId)).map((h) => h.id));
-      for (const g of goals) {
-        await deps.repo.upsertGoal(userId, { ...g, links: g.links.filter((l) => mine.has(l.habitId)) } as ServerGoal);
-      }
+        await repo.upsertHabits(userId, habits as ServerHabit[]);
+        // Solo se aceptan referencias a hábitos propios: un id ajeno nunca se vincula (ni se borraría en cascada).
+        const mine = new Set((await repo.listHabits(userId)).map((h) => h.id));
+        await repo.upsertGoals(userId, goals.map((g) => ({ ...g, links: g.links.filter((l) => mine.has(l.habitId)) }) as ServerGoal));
 
-      let skipped = 0;
-      for (const e of entries) {
-        if (!mine.has(e.habitId)) {
-          skipped++;
-          continue;
+        const rejected: { id: string; reason: string }[] = [];
+        const candidates: typeof entries = [];
+        for (const e of entries) {
+          if (mine.has(e.habitId)) candidates.push(e);
+          else rejected.push({ id: e.id, reason: "El hábito no existe" });
         }
-        try {
-          await deps.repo.insertEntry(userId, { ...e, occurredAt: new Date(e.occurredAt) });
-        } catch {
-          skipped++; // p. ej. el hábito ya no existe (FK): se descarta sin frenar el resto
+        const stored = new Set(await repo.insertEntries(userId, candidates.map((e) => ({ ...e, occurredAt: new Date(e.occurredAt) }))));
+        const accepted: string[] = [];
+        for (const e of candidates) {
+          if (stored.has(e.clientId)) accepted.push(e.id);
+          else rejected.push({ id: e.id, reason: "Choca con otro registro" });
         }
-      }
-      if (settings) {
-        const { displayName, displayNameUpdatedAt, ...rest } = settings;
-        // El nombre: gana el cambio más nuevo (dos dispositivos pueden haberlo cambiado)
-        const current = await deps.repo.getSettings(userId);
-        const newer = displayName && (displayNameUpdatedAt ?? 0) > (current.displayNameUpdatedAt ?? -1);
-        await deps.repo.updateSettings(userId, newer ? { ...rest, displayName, displayNameUpdatedAt: displayNameUpdatedAt ?? deps.now().getTime() } : rest);
-      }
-      return Response.json({ ok: true, skipped });
+
+        if (settings) {
+          const { displayName, displayNameUpdatedAt, ...rest } = settings;
+          // El nombre: gana el cambio más nuevo (dos dispositivos pueden haberlo cambiado)
+          const current = await repo.getSettings(userId);
+          const newer = displayName && (displayNameUpdatedAt ?? 0) > (current.displayNameUpdatedAt ?? -1);
+          await repo.updateSettings(userId, newer ? { ...rest, displayName, displayNameUpdatedAt: displayNameUpdatedAt ?? deps.now().getTime() } : rest);
+        }
+        return { accepted, rejected };
+      });
+      return Response.json({ ok: true, accepted, rejected, skipped: rejected.length });
     },
   };
 }
