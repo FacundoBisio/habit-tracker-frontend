@@ -16,3 +16,6 @@ next-env.d.ts
 .idea
 .vscode/*
 !.vscode/extensions.json
+
+# Copias de trabajo temporales de agentes
+.claude/worktrees/

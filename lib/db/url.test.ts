@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { databaseUrl } from "./url";
+import { databaseUrl, migrationUrl } from "./url";
 
 describe("databaseUrl", () => {
   it("prefiere DATABASE_URL", () => {
@@ -13,5 +13,15 @@ describe("databaseUrl", () => {
 
   it("devuelve undefined sin variables", () => {
     expect(databaseUrl({})).toBeUndefined();
+  });
+});
+
+describe("migrationUrl", () => {
+  it("prefiere la conexión directa de la integración para DDL", () => {
+    expect(migrationUrl({ POSTGRES_URL: "postgres://p@h:6543/db", POSTGRES_URL_NON_POOLING: "postgres://d@h:5432/db?supa=x" })).toBe("postgres://d@h:5432/db");
+  });
+
+  it("sin conexión directa usa la de la app", () => {
+    expect(migrationUrl({ DATABASE_URL: "postgres://a@h:6543/db" })).toBe("postgres://a@h:6543/db");
   });
 });
