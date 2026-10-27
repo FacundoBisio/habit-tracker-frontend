@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
+import { m, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { Award, CalendarCheck, CheckCheck, Crown, Flag, Flame, Lock, type LucideIcon, Medal, Sparkles, Trophy } from "lucide-react";
 import { useRef } from "react";
 import { cn } from "@/lib/cn";
@@ -44,7 +44,7 @@ function Badge({ a }: { a: Achievement }) {
 
   return (
     <li className="[perspective:700px]">
-      <motion.div
+      <m.div
         ref={ref}
         onPointerMove={move}
         onPointerLeave={leave}
@@ -58,7 +58,7 @@ function Badge({ a }: { a: Achievement }) {
         )}
       >
         {a.unlocked && (
-          <motion.span
+          <m.span
             aria-hidden
             className="pointer-events-none absolute inset-0"
             style={{
@@ -99,7 +99,7 @@ function Badge({ a }: { a: Achievement }) {
             </span>
           </span>
         )}
-      </motion.div>
+      </m.div>
     </li>
   );
 }

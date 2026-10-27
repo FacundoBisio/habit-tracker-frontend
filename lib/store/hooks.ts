@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { liveQuery } from "dexie";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { toLocalDate } from "@/lib/domain/dates";
 import { DEFAULT_SETTINGS, db, type Entry, type Goal, type Habit, type Settings } from "./db";
@@ -37,11 +38,33 @@ export function useHabitsState(includeArchived = false): { habits: Habit[]; read
 
 export const useHabits = (includeArchived = false): Habit[] => useHabitsState(includeArchived).habits;
 
+/*
+  Registros: UNA suscripción compartida por todos los componentes que los usan (Hoy, logros, semana…). Antes cada
+  hook leía la tabla entera por su cuenta en cada cambio; ahora es una lectura por cambio para toda la app.
+*/
+const entryListeners = new Set<() => void>();
+let entrySub: { unsubscribe(): void } | null = null;
+
+function subscribeEntries(cb: () => void) {
+  entryListeners.add(cb);
+  entrySub ??= liveQuery(() => db.entries.toArray()).subscribe({
+    next: (rows) => {
+      cache.entries = rows;
+      entryListeners.forEach((l) => l());
+    },
+    error: () => {},
+  });
+  return () => {
+    entryListeners.delete(cb);
+    if (entryListeners.size === 0) {
+      entrySub?.unsubscribe();
+      entrySub = null;
+    }
+  };
+}
+
 export function useEntriesState(): { entries: Entry[]; ready: boolean } {
-  const live = useLiveQuery(() => db.entries.toArray(), [], cache.entries);
-  useEffect(() => {
-    if (live) cache.entries = live;
-  }, [live]);
+  const live = useSyncExternalStore(subscribeEntries, () => cache.entries, () => undefined);
   return { entries: live ?? EMPTY_ENTRIES, ready: live !== undefined };
 }
 

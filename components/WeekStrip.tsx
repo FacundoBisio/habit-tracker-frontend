@@ -2,7 +2,7 @@
 
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/cn";
 import type { StripDay } from "@/lib/store/day";
@@ -42,7 +42,7 @@ export function WeekStrip({ days, selected, onSelect }: { days: StripDay[]; sele
             )}
           >
             {active && (
-              <motion.span
+              <m.span
                 layoutId="day-pill"
                 className="absolute inset-0 rounded-2xl bg-fg shadow-lg"
                 transition={{ type: "spring", stiffness: 480, damping: 34 }}

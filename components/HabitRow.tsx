@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 import { Check, Flame, Minus, Plus } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { fmt, haptic, streakColor, unitLabel } from "@/lib/cn";
@@ -37,16 +37,16 @@ function usePress(onTap: () => void, onLong: () => void) {
 
 function CheckMark() {
   return (
-    <motion.span
+    <m.span
       initial={{ scale: 0.5, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       transition={{ type: "spring", stiffness: 600, damping: 22 }}
       className="grid size-9 place-items-center rounded-full bg-accent text-accent-fg shadow-md"
     >
       <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth={3.2} strokeLinecap="round" strokeLinejoin="round">
-        <motion.path d="M5 12.5l4.5 4.5L19 7.5" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.28, delay: 0.05 }} />
+        <m.path d="M5 12.5l4.5 4.5L19 7.5" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.28, delay: 0.05 }} />
       </svg>
-    </motion.span>
+    </m.span>
   );
 }
 
@@ -137,7 +137,7 @@ export function HabitRow({
             <span className="font-display relative block w-fit max-w-full truncate text-[17px] font-semibold tracking-tight">
               {habit.name}
               {!qty && (
-                <motion.span
+                <m.span
                   aria-hidden
                   className="absolute top-1/2 left-0 h-[2px] w-full origin-left rounded-full bg-fg/55"
                   initial={false}
@@ -170,7 +170,7 @@ export function HabitRow({
             </button>
             <span className="font-display relative grid h-11 min-w-9 place-items-center overflow-hidden px-1 text-lg font-semibold tabular-nums">
               <AnimatePresence mode="popLayout" initial={false}>
-                <motion.span
+                <m.span
                   key={todayTotal}
                   initial={{ y: 14, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
@@ -178,7 +178,7 @@ export function HabitRow({
                   transition={{ duration: 0.16 }}
                 >
                   {fmt(todayTotal)}
-                </motion.span>
+                </m.span>
               </AnimatePresence>
             </span>
             <span ref={anchor} className="relative grid">

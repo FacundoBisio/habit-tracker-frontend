@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -31,12 +31,12 @@ export default function Template({ children }: { children: React.ReactNode }) {
 
   const dir = from === null ? 0 : Math.sign(current - from);
   return (
-    <motion.div
+    <m.div
       initial={from === null ? false : { opacity: 0, x: dir * 28 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.5, ease: [0.32, 0.72, 0, 1] }}
     >
       {children}
-    </motion.div>
+    </m.div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 import { X } from "lucide-react";
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
@@ -21,9 +21,13 @@ export function Sheet({
 }) {
   useEffect(() => {
     if (!open) return;
+    document.documentElement.dataset.modal = "1"; // pausa el aura de fondo mientras está abierto
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      delete document.documentElement.dataset.modal;
+    };
   }, [open, onClose]);
 
   if (typeof document === "undefined") return null;
@@ -31,7 +35,7 @@ export function Sheet({
     <AnimatePresence>
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))]">
-          <motion.div
+          <m.div
             className="absolute inset-0 bg-black/50 backdrop-blur-[4px]"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -39,7 +43,7 @@ export function Sheet({
             transition={{ duration: 0.25 }}
             onClick={onClose}
           />
-          <motion.div
+          <m.div
             role="dialog"
             aria-modal="true"
             aria-label={title}
@@ -63,7 +67,7 @@ export function Sheet({
               </button>
             </div>
             {children}
-          </motion.div>
+          </m.div>
         </div>
       )}
     </AnimatePresence>,

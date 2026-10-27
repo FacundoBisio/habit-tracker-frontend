@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 import { BarChart3, CalendarDays, CircleCheck, Settings, Target } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -32,7 +32,7 @@ export function BottomNav() {
         {TABS.map(({ href, label, icon: Icon }) => {
           const active = href === "/" ? path === "/" : path.startsWith(href);
           return (
-            <motion.li key={href} layout transition={SMOOTH}>
+            <m.li key={href} layout transition={SMOOTH}>
               <Link
                 href={href}
                 aria-current={active ? "page" : undefined}
@@ -43,13 +43,13 @@ export function BottomNav() {
                   active ? "px-4 text-accent-fg" : "w-12 text-[var(--nav-fg)] hover:text-fg",
                 )}
               >
-                {active && <motion.span layoutId="nav-pill" className="absolute inset-0 rounded-full bg-accent" transition={SMOOTH} />}
-                <motion.span layout="position" transition={SMOOTH} className="relative">
+                {active && <m.span layoutId="nav-pill" className="absolute inset-0 rounded-full bg-accent" transition={SMOOTH} />}
+                <m.span layout="position" transition={SMOOTH} className="relative">
                   <Icon className="size-[21px]" strokeWidth={active ? 2.3 : 1.8} />
-                </motion.span>
+                </m.span>
                 <AnimatePresence initial={false}>
                   {active && (
-                    <motion.span
+                    <m.span
                       key="label"
                       initial={{ opacity: 0, width: 0 }}
                       animate={{ opacity: 1, width: "auto", transition: { ...SMOOTH, opacity: { duration: 0.4, delay: 0.15 } } }}
@@ -57,11 +57,11 @@ export function BottomNav() {
                       className="relative overflow-hidden whitespace-nowrap"
                     >
                       {label}
-                    </motion.span>
+                    </m.span>
                   )}
                 </AnimatePresence>
               </Link>
-            </motion.li>
+            </m.li>
           );
         })}
       </ul>

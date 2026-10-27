@@ -30,7 +30,7 @@ Todo lo demás depende de usarlo de verdad unos días.
 | **CI con E2E + presupuesto de Lighthouse** | Evita regresiones como la de los popups | S |
 
 ## 4. Impacto bajo o con costo desproporcionado
-- **Personaje 3D (esfera): integrado.** three.js con carga diferida, modelo de ~600 KB, bola verde simple como respaldo (sin WebGL, "menos movimiento", interruptor en Ajustes o si el modelo no carga). Pendiente a futuro: probar en iPhones reales (batería y rendimiento con WebGL), y evaluar `meshopt` para bajar el peso del modelo.
+- **Personaje 3D (esfera): integrado.** three.js con carga diferida, modelo de ~450 KB (~80 KB con gzip), bola verde simple como respaldo (sin WebGL, "menos movimiento", interruptor en Ajustes o si el modelo no carga). Pendiente a futuro: probar en iPhones reales (batería y rendimiento con WebGL), y evaluar `meshopt` para bajar el peso del modelo.
 - **Funciones sociales / amigos:** requiere moderación, privacidad y más infraestructura; recién tiene sentido con más de un usuario real.
 - **App nativa / widget WidgetKit:** exige Apple Developer (pago). Los Atajos + el widget de Atajos ya cubren el caso.
 

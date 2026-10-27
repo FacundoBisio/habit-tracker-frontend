@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 import { AlertCircle, Check, Cloud, CloudOff, Info, Loader2, Moon, Sun, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { dismiss, FAST_MS, useNoticeState, type Notice } from "@/lib/notify";
@@ -39,7 +39,7 @@ function ThemeToggle() {
       className="grid size-11 place-items-center rounded-full text-muted transition-colors hover:bg-surface-2 hover:text-fg"
     >
       <AnimatePresence mode="wait" initial={false}>
-        <motion.span
+        <m.span
           key={theme ?? "none"}
           initial={{ rotate: -60, opacity: 0, scale: 0.7 }}
           animate={{ rotate: 0, opacity: 1, scale: 1 }}
@@ -47,7 +47,7 @@ function ThemeToggle() {
           transition={{ duration: 0.18 }}
         >
           {theme === "dark" ? <Moon className="size-[18px]" /> : <Sun className="size-[18px]" />}
-        </motion.span>
+        </m.span>
       </AnimatePresence>
     </button>
   );
@@ -56,7 +56,7 @@ function ThemeToggle() {
 function NoticePill({ n, waiting }: { n: Notice; waiting: number }) {
   const Icon = n.kind === "success" ? Check : n.kind === "error" ? AlertCircle : Info;
   return (
-    <motion.li
+    <m.li
       initial={{ opacity: 0, y: -12, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -8, scale: 0.97, transition: { duration: 0.14 } }}
@@ -102,13 +102,13 @@ function NoticePill({ n, waiting }: { n: Notice; waiting: number }) {
       >
         <X className="size-4" />
       </button>
-      <motion.span
+      <m.span
         className="absolute inset-x-0 bottom-0 h-0.5 origin-left bg-accent/50"
         initial={{ scaleX: 1 }}
         animate={{ scaleX: 0 }}
         transition={{ duration: Math.min(n.duration, waiting > 0 ? FAST_MS : n.duration) / 1000, ease: "linear" }}
       />
-    </motion.li>
+    </m.li>
   );
 }
 
@@ -124,13 +124,13 @@ export function TopBar({ sync, pending }: { sync: SyncStatus; pending: number })
     <div className="relative mb-3 h-14">
       <AnimatePresence mode="wait" initial={false}>
         {current ? (
-          <motion.ul key="notices" role="status" aria-live="polite" className="absolute inset-0 flex items-center">
+          <m.ul key="notices" role="status" aria-live="polite" className="absolute inset-0 flex items-center">
             <AnimatePresence mode="wait" initial={false}>
               <NoticePill key={current.id} n={current} waiting={waiting} />
             </AnimatePresence>
-          </motion.ul>
+          </m.ul>
         ) : (
-          <motion.div
+          <m.div
             key="idle"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -148,7 +148,7 @@ export function TopBar({ sync, pending }: { sync: SyncStatus; pending: number })
               </span>
               <ThemeToggle />
             </span>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
     </div>

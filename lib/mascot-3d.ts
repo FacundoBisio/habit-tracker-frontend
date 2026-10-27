@@ -5,12 +5,6 @@ import { useSyncExternalStore } from "react";
 /** Modelo 3D del personaje (glTF binario). Se descarga solo cuando se usa el modo 3D. */
 export const MODEL_URL = "/models/mascot.glb";
 
-/**
- * Los clips que trae el archivo (idle, wave, lift, ...) ya NO se reproducen: el personaje se anima por
- * código (`lib/mascot-3d-rig.ts`) moviendo los nodos del modelo. Quedan en el archivo, pero son opcionales.
- */
-export const OPTIONAL_CLIPS = ["idle", "wave", "lift", "drink", "read", "meditate", "run", "sleep", "dance", "celebrate", "poke"] as const;
-
 /** Contrato con el modelo: si falta algo de esto, el 3D no se activa y se usa el 2D. */
 export const REQUIRED_NODES = [
   "Root", "Body", "Face", "Eye_L", "Eye_R", "Pupil_L", "Pupil_R", "Eyelid_L", "Eyelid_R", "Brow_L", "Brow_R",

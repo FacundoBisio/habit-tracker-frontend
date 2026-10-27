@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { ACTIVITY_LABEL, useActivityOverride, type Activity } from "@/lib/mascot";
@@ -16,7 +16,7 @@ function BallFigure({ activity, size }: { activity: Activity; size: number }) {
   const reduce = useReducedMotion();
   const sleeping = activity === "sleep" || activity === "meditate";
   return (
-    <motion.div
+    <m.div
       role="img"
       aria-label={ACTIVITY_LABEL[activity]}
       className="shrink-0"
@@ -56,7 +56,7 @@ function BallFigure({ activity, size }: { activity: Activity; size: number }) {
         </g>
         <path d="M70 90q10 8 20 0" stroke="#0a0f0c" strokeWidth="3.2" strokeLinecap="round" fill="none" />
       </svg>
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -103,7 +103,7 @@ export function Mascot({ message }: { message: string }) {
       <MascotFigure activity={activity} size={140} />
       <div className="relative min-w-0 flex-1 pb-4">
         <AnimatePresence mode="wait" initial={false}>
-          <motion.p
+          <m.p
             key={message}
             initial={{ opacity: 0, scale: 0.94, y: 6 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -112,7 +112,7 @@ export function Mascot({ message }: { message: string }) {
             className="card relative origin-bottom-left rounded-[1.25rem] rounded-bl-md px-4 py-3 text-[14px] leading-snug font-medium"
           >
             {message}
-          </motion.p>
+          </m.p>
         </AnimatePresence>
       </div>
     </div>

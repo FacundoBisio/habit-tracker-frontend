@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useDeferredValue, useEffect, useMemo } from "react";
 import { computeAchievements, type Achievement } from "@/lib/domain/achievements";
 import { fireParty } from "@/lib/confetti";
 import { toast } from "@/lib/notify";
@@ -10,7 +10,9 @@ const SEEN_KEY = "achievements-seen";
 
 export function useAchievements(): { list: Achievement[]; ready: boolean } {
   const { habits, ready: habitsReady } = useHabitsState(true);
-  const { entries, ready: entriesReady } = useEntriesState();
+  const { entries: liveEntries, ready: entriesReady } = useEntriesState();
+  // Recorrer todo el historial puede tardar: React primero muestra el toque y después recalcula los logros
+  const entries = useDeferredValue(liveEntries);
   const goals = useGoals();
   const { weekStartsOn } = useSettings();
   const today = useToday();

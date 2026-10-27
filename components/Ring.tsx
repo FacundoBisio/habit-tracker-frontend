@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 
 /** Anillo de avance del día en verde. */
 export function Ring({ done, total, size = 76 }: { done: number; total: number; size?: number }) {
@@ -20,7 +20,7 @@ export function Ring({ done, total, size = 76 }: { done: number; total: number; 
     >
       <svg width={size} height={size} className="-rotate-90">
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--surface-2)" strokeWidth={stroke} />
-        <motion.circle
+        <m.circle
           cx={size / 2}
           cy={size / 2}
           r={r}
@@ -33,7 +33,7 @@ export function Ring({ done, total, size = 76 }: { done: number; total: number; 
           transition={{ type: "spring", stiffness: 90, damping: 20 }}
         />
       </svg>
-      <motion.span
+      <m.span
         key={done}
         initial={{ scale: 0.8, opacity: 0.4 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -42,7 +42,7 @@ export function Ring({ done, total, size = 76 }: { done: number; total: number; 
       >
         {done}
         <span className="text-sm font-medium text-muted">/{total}</span>
-      </motion.span>
+      </m.span>
     </div>
   );
 }

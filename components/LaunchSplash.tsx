@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { preloadMascot } from "@/lib/mascot-engine-state";
 import { useSessionFlag } from "@/lib/session-flag";
@@ -43,7 +43,7 @@ export function LaunchSplash() {
 
   const word = "SuperHábitos";
   return (
-    <motion.div
+    <m.div
       data-testid="launch-splash"
       aria-hidden
       className={`fixed inset-0 z-[90] grid place-items-center bg-[#090c0a] ${phase === "out" ? "pointer-events-none" : ""}`}
@@ -56,16 +56,16 @@ export function LaunchSplash() {
       }}
     >
       <div className="flex flex-col items-center">
-        <motion.div
+        <m.div
           initial={{ scale: 0.3, y: 60, opacity: 0 }}
           animate={{ scale: 1, y: 0, opacity: 1 }}
           transition={{ type: "spring", stiffness: 220, damping: 13 }}
         >
           <MascotFigure activity="celebrate" size={170} interactive={false} />
-        </motion.div>
+        </m.div>
         <div className="font-display -mt-2 flex text-[40px] leading-none font-extrabold tracking-tight">
           {Array.from(word).map((ch, i) => (
-            <motion.span
+            <m.span
               key={i}
               initial={{ y: 26, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -73,10 +73,10 @@ export function LaunchSplash() {
               style={{ color: i < 5 ? "#fff" : GREEN }}
             >
               {ch}
-            </motion.span>
+            </m.span>
           ))}
         </div>
       </div>
-    </motion.div>
+    </m.div>
   );
 }

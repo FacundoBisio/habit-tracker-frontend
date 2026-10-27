@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { PARTY_MS, useBursts, type Burst, type Particle } from "@/lib/confetti";
 
 function Shape({ kind, color, size }: { kind: Particle["shape"]; color: string; size: number }) {
@@ -25,7 +25,7 @@ function PartyView({ burst }: { burst: Burst }) {
   return (
     <>
       {burst.particles.map((p, i) => (
-        <motion.span
+        <m.span
           key={i}
           className="absolute"
           style={{ left: `${(p.x0 ?? 0.5) * 100}%`, top: 0 }}
@@ -34,7 +34,7 @@ function PartyView({ burst }: { burst: Burst }) {
           transition={{ duration: PARTY_MS / 1000 - p.delay, delay: p.delay, ease: "linear", times: [0, 0.5, 1] }}
         >
           <Shape kind={p.shape} color={p.color} size={p.size} />
-        </motion.span>
+        </m.span>
       ))}
     </>
   );
@@ -45,7 +45,7 @@ function BurstView({ burst }: { burst: Burst }) {
   return (
     <>
       {burst.particles.map((p, i) => (
-        <motion.span
+        <m.span
           key={i}
           className="absolute"
           style={{ left: burst.x, top: burst.y }}
@@ -54,7 +54,7 @@ function BurstView({ burst }: { burst: Burst }) {
           transition={{ duration: 1.2, delay: p.delay, ease: "easeOut", times: [0, 0.45, 1] }}
         >
           <Shape kind={p.shape} color={p.color} size={p.size} />
-        </motion.span>
+        </m.span>
       ))}
     </>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 import { CloudOff } from "lucide-react";
 import { useEffect } from "react";
 import { mascot3dAllowed, preloadMascot } from "@/lib/mascot-engine-state";
@@ -62,7 +62,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {welcome ? (
           introDone ? <Welcome key="welcome" /> : <Intro key="intro" onDone={markIntroDone} />
         ) : (
-          <motion.div
+          <m.div
             key="app"
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -78,7 +78,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <main className="flex-1">{children}</main>
             </div>
             <BottomNav />
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
       <AnimatePresence>{introReplay && <Intro key="replay" mode="replay" onDone={endIntroReplay} />}</AnimatePresence>

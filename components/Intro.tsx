@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import { Flame, Target, Trophy } from "lucide-react";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { Activity } from "@/lib/mascot";
@@ -17,7 +17,7 @@ const SLIDES = 2;
 function Line({ children, delay, green = false, reduced }: { children: string; delay: number; green?: boolean; reduced: boolean }) {
   return (
     <span className="block overflow-hidden pt-[0.1em] pb-[0.04em]" aria-hidden>
-      <motion.span
+      <m.span
         className="font-display block leading-[1.02] font-extrabold tracking-tight"
         style={{ color: green ? GREEN : "#fff" }}
         initial={reduced ? { opacity: 0 } : { y: "110%" }}
@@ -25,7 +25,7 @@ function Line({ children, delay, green = false, reduced }: { children: string; d
         transition={{ delay: reduced ? 0 : delay, duration: reduced ? 0.2 : 0.7, ease: EASE }}
       >
         {children}
-      </motion.span>
+      </m.span>
     </span>
   );
 }
@@ -59,13 +59,13 @@ function Peek({ activity, reduced, size }: { activity: Activity; reduced: boolea
   const go = useCharacterReady();
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-30 flex justify-center">
-      <motion.div
+      <m.div
         initial={reduced ? { opacity: 0 } : { y: 260 }}
         animate={go ? (reduced ? { opacity: 1 } : { y: 0 }) : undefined}
         transition={{ type: "spring", stiffness: 130, damping: 15, delay: reduced ? 0 : 0.15 }}
       >
         <MascotFigure activity={activity} size={size} interactive={false} />
-      </motion.div>
+      </m.div>
     </div>
   );
 }
@@ -78,8 +78,8 @@ function SlideOne({ reduced }: { reduced: boolean }) {
           <Line delay={0.35} reduced={reduced}>HACÉ</Line>
           <Line delay={0.44} reduced={reduced}>HÁBITOS</Line>
           <Line delay={0.53} green reduced={reduced}>MEJORES</Line>
-          <motion.svg viewBox="0 0 120 10" className="mt-1 mb-1 h-3 w-44" aria-hidden>
-            <motion.path
+          <m.svg viewBox="0 0 120 10" className="mt-1 mb-1 h-3 w-44" aria-hidden>
+            <m.path
               d="M2 5 Q12 -1 22 5 T42 5 T62 5 T82 5 T102 5 T118 5"
               fill="none"
               stroke={GREEN}
@@ -89,7 +89,7 @@ function SlideOne({ reduced }: { reduced: boolean }) {
               animate={{ pathLength: 1 }}
               transition={{ delay: reduced ? 0 : 1.1, duration: reduced ? 0 : 0.7, ease: EASE }}
             />
-          </motion.svg>
+          </m.svg>
           <Line delay={0.62} reduced={reduced}>CON</Line>
           <Line delay={0.71} reduced={reduced}>SUPERHÁBITOS</Line>
         </h1>
@@ -115,7 +115,7 @@ function SlideTwo({ reduced }: { reduced: boolean }) {
         </h1>
         <ul className="mt-6 grid grid-cols-3 gap-2.5">
           {CHIPS.map(({ icon: Icon, title, sub }, i) => (
-            <motion.li
+            <m.li
               key={title}
               initial={reduced ? { opacity: 0 } : { opacity: 0, y: 26 }}
               animate={{ opacity: 1, y: 0 }}
@@ -127,7 +127,7 @@ function SlideTwo({ reduced }: { reduced: boolean }) {
               </span>
               <span className="block text-[13px] font-semibold">{title}</span>
               <span className="mt-0.5 block text-[11px] leading-snug text-white/60">{sub}</span>
-            </motion.li>
+            </m.li>
           ))}
         </ul>
       </div>
@@ -155,7 +155,7 @@ export function Intro({ onDone, mode = "first" }: { onDone: () => void; mode?: "
   const go = (n: number) => setIndex(Math.max(0, Math.min(SLIDES - 1, n)));
 
   return (
-    <motion.div
+    <m.div
       role="dialog"
       aria-modal="true"
       aria-label="Presentación de SuperHábitos"
@@ -168,7 +168,7 @@ export function Intro({ onDone, mode = "first" }: { onDone: () => void; mode?: "
       }}
     >
       <AnimatePresence>
-        <motion.section
+        <m.section
           key={index}
           className="absolute inset-0 bg-[#090c0a]"
           style={{
@@ -181,7 +181,7 @@ export function Intro({ onDone, mode = "first" }: { onDone: () => void; mode?: "
           transition={{ duration: reduced ? 0.2 : 0.45, ease: EASE }}
         >
           {index === 0 ? <SlideOne reduced={reduced} /> : <SlideTwo reduced={reduced} />}
-        </motion.section>
+        </m.section>
       </AnimatePresence>
 
       <Peek activity={index === 0 ? "wave" : "lift"} reduced={reduced} size={ball} />
@@ -200,7 +200,7 @@ export function Intro({ onDone, mode = "first" }: { onDone: () => void; mode?: "
       >
         <div className="flex items-center gap-1.5" aria-hidden>
           {Array.from({ length: SLIDES }, (_, i) => (
-            <motion.span
+            <m.span
               key={i}
               className="h-2 rounded-full"
               animate={{ width: i === index ? 26 : 8, backgroundColor: i === index ? GREEN : "rgba(255,255,255,0.3)" }}
@@ -216,6 +216,6 @@ export function Intro({ onDone, mode = "first" }: { onDone: () => void; mode?: "
           {last ? (mode === "replay" ? "Volver" : "Empezar") : "Siguiente"}
         </button>
       </div>
-    </motion.div>
+    </m.div>
   );
 }

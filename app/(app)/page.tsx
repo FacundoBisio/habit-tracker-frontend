@@ -2,7 +2,7 @@
 
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { Plus, Sprout, Undo2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { HabitForm } from "@/components/HabitForm";
@@ -143,17 +143,17 @@ export default function TodayPage() {
         </div>
       ) : (
         <>
-          <motion.ul key={day} variants={list} initial="hidden" animate="show" className="space-y-3">
+          <m.ul key={day} variants={list} initial="hidden" animate="show" className="space-y-3">
             {rows.map((row, i) => (
-              <motion.li key={`${day}:${row.habit.id}`} variants={item} layout data-tour={i === 0 ? "fila-habito" : undefined}>
+              <m.li key={`${day}:${row.habit.id}`} variants={item} layout="position" data-tour={i === 0 ? "fila-habito" : undefined}>
                 <HabitRow row={row} onToggle={() => toggle(row)} onAdjust={(d) => adjust(row, d)} onOpen={() => {
                     playActivity(activityFor(row.habit.emoji));
                     setEditing(row.habit);
                   }}
                 />
-              </motion.li>
+              </m.li>
             ))}
-          </motion.ul>
+          </m.ul>
           <button
             onClick={() => setFormOpen(true)}
             aria-label="Nuevo hábito"

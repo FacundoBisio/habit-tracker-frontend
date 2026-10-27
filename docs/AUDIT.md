@@ -5,10 +5,10 @@ Alcance: todo el repo (dominio, PWA, API de Atajos, bot, sincronización, seguri
 ## Resultado en números
 | Chequeo | Resultado |
 |---|---|
-| Pruebas unitarias (Vitest) | 138 pasan |
-| Pruebas E2E (Playwright, iPhone 14, Chrome) | 25 pasan |
+| Pruebas unitarias (Vitest) | 190 pasan |
+| Pruebas E2E (Playwright, iPhone 14, Chrome) | 31 pasan |
 | `eslint` / `tsc --noEmit` / `next build` | limpios |
-| Lighthouse móvil (simulación 4× CPU, mediana de 3 corridas, con el personaje 3D) | Rendimiento 59 · Accesibilidad 100 · Buenas prácticas 100 · SEO 100 · CLS 0,099 · TBT ~1,4 s (antes del motor único: 52 y ~7,7 s; ver `PROGRESS.md`) |
+| Lighthouse móvil (simulación 4× CPU, mediana de 3 corridas, con el personaje 3D) | Rendimiento 60 · Accesibilidad 100 · Buenas prácticas 100 · SEO 100 · CLS 0,099 · TBT ~1,6 s (antes del motor único: 52 y ~7,7 s; el TBT lo domina three.js con WebGL por software; ver `PROGRESS.md`) |
 
 ## Seguridad
 
@@ -65,6 +65,6 @@ Alcance: todo el repo (dominio, PWA, API de Atajos, bot, sincronización, seguri
 
 ## Proceso
 - Las animaciones del personaje se verificaron en Chrome real (entrada, slides, pantalla de nombre, curl, tomar agua, correr, vuelta al reposo a los 10 s, avisos en cola) y con capturas por actividad en claro y oscuro.
-- Personaje 3D: el `.glb` entregado se inspeccionó antes de usarlo (sin extensiones, sin texturas, 606 KB, 9.980 triángulos, licencia CC0/MIT). Un test verifica el contrato del modelo (piezas, morphs) para detectar cambios futuros. Riesgo abierto: no se probó en iPhones reales (consumo de batería con WebGL).
+- Personaje 3D: el `.glb` entregado se inspeccionó antes de usarlo (sin extensiones, sin texturas, 606 KB, 9.980 triángulos, licencia CC0/MIT; optimizado después a 453 KB (80 KB con gzip): sin clips y con los triángulos rotos de la mancuerna convertidos en degenerados en el archivo). Un test verifica el contrato del modelo (piezas, morphs) para detectar cambios futuros. Riesgo abierto: no se probó en iPhones reales (consumo de batería con WebGL).
 - Historial local reescrito para quitar atribuciones de Claude; **falta `git push --force-with-lease origin master`** (lo bloqueó el modo automático; lo corrés vos).
 - `npm audit`: una advertencia moderada de `esbuild` vía `drizzle-kit` (solo desarrollo).

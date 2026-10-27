@@ -162,6 +162,18 @@ button {
   -webkit-backdrop-filter: blur(16px) saturate(1.3);
 }
 
+/*
+  En pantallas táctiles (celulares) el vidrio se reemplaza por un fondo casi sólido: con el aura moviéndose atrás,
+  cada tarjeta con backdrop-filter se vuelve a desenfocar en cada cuadro. Sobre un aura suave se ve casi igual.
+*/
+@media (pointer: coarse) {
+  .card {
+    background: color-mix(in srgb, var(--surface-solid) 90%, transparent);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
 /* Tarjeta de ícono: fondo verde y glifo blanco (claro) / negro (oscuro). `data-on` marca "hecho" con un halo. */
 .chip {
   background: var(--accent);
@@ -205,8 +217,9 @@ button {
   pointer-events: none;
 }
 
-:root[data-intro] .aura i {
-  animation-play-state: paused;
+:root[data-intro] .aura i,
+:root[data-modal] .aura i {
+  animation-play-state: paused; /* tapado por el intro o un popup: no vale la pena animarlo */
 }
 
 .aura i {
@@ -214,14 +227,14 @@ button {
   width: 78vmax;
   height: 78vmax;
   border-radius: 9999px;
-  filter: blur(70px);
+  /* Sin filter: blur (de lo más caro en GPU móvil): el degradé radial ya es suave por sí mismo */
   will-change: transform;
 }
 
 .aura i:nth-child(1) {
   top: -30vmax;
   left: -26vmax;
-  background: radial-gradient(circle, var(--g1), transparent 66%);
+  background: radial-gradient(circle, var(--g1), transparent 72%);
   opacity: calc(var(--aura-op) * (0.55 + 0.45 * var(--p)));
   animation: drift-a 46s ease-in-out infinite alternate;
 }
@@ -229,7 +242,7 @@ button {
 .aura i:nth-child(2) {
   right: -34vmax;
   top: 16vh;
-  background: radial-gradient(circle, var(--g2), transparent 66%);
+  background: radial-gradient(circle, var(--g2), transparent 72%);
   opacity: calc(var(--aura-op) * (1 - 0.4 * var(--p)));
   animation: drift-b 58s ease-in-out infinite alternate;
 }
@@ -239,7 +252,7 @@ button {
   left: 4vmax;
   width: 64vmax;
   height: 64vmax;
-  background: radial-gradient(circle, var(--g3), transparent 66%);
+  background: radial-gradient(circle, var(--g3), transparent 72%);
   opacity: calc(var(--aura-op) * clamp(0, (var(--p) * 2.2 - 0.6), 1));
   animation: drift-c 52s ease-in-out infinite alternate;
 }

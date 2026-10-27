@@ -1,6 +1,6 @@
 import { readFileSync, statSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { OPTIONAL_CLIPS, REQUIRED_MORPHS, REQUIRED_NODES } from "./mascot-3d";
+import { REQUIRED_MORPHS, REQUIRED_NODES } from "./mascot-3d";
 
 const PATH = "public/models/mascot.glb";
 
@@ -25,8 +25,8 @@ describe("contrato del modelo 3D (public/models/mascot.glb)", () => {
   const gltf = readGlb();
   const nodeNames = new Set(gltf.nodes.map((n) => n.name));
 
-  it("pesa menos de 2 MB y es glTF 2.0 sin extensiones obligatorias ni texturas", () => {
-    expect(statSync(PATH).size).toBeLessThan(2 * 1024 * 1024);
+  it("pesa menos de 600 KB (sin comprimir) y es glTF 2.0 sin extensiones obligatorias ni texturas", () => {
+    expect(statSync(PATH).size).toBeLessThan(600 * 1024);
     expect(gltf.asset.version).toBe("2.0");
     expect(gltf.extensionsRequired ?? []).toEqual([]);
     expect(gltf.images ?? []).toHaveLength(0);
@@ -36,9 +36,29 @@ describe("contrato del modelo 3D (public/models/mascot.glb)", () => {
     for (const name of REQUIRED_NODES) expect(nodeNames.has(name), `falta el nodo ${name}`).toBe(true);
   });
 
-  it("los clips del archivo son opcionales (el personaje se anima por código), pero siguen estando", () => {
-    const clips = new Set((gltf.animations ?? []).map((a) => a.name));
-    for (const c of OPTIONAL_CLIPS) expect(clips.has(c), `falta el clip ${c}`).toBe(true);
+  it("no trae clips: el personaje se anima por código (los clips originales se sacaron para bajar el peso)", () => {
+    expect(gltf.animations ?? []).toHaveLength(0);
+  });
+
+  it("ningún triángulo apunta a vértices que no existen (la mancuerna original traía índices rotos; ahora son triángulos degenerados)", () => {
+    const buf = readFileSync(PATH);
+    const jsonLen = buf.readUInt32LE(12);
+    const binStart = 20 + jsonLen + 8;
+    const views = (gltf as unknown as { bufferViews: { byteOffset?: number }[] }).bufferViews;
+    const accs = gltf.accessors as unknown as { bufferView: number; byteOffset?: number; componentType: number; count: number }[];
+    for (const m of gltf.meshes) {
+      for (const p of m.primitives) {
+        if (p.indices === undefined) continue;
+        const a = accs[p.indices];
+        const n = gltf.accessors[p.attributes.POSITION].count;
+        const off = binStart + (views[a.bufferView].byteOffset ?? 0) + (a.byteOffset ?? 0);
+        const size = a.componentType === 5125 ? 4 : 2;
+        for (let i = 0; i < a.count; i++) {
+          const v = size === 4 ? buf.readUInt32LE(off + i * 4) : buf.readUInt16LE(off + i * 2);
+          expect(v, `índice fuera de rango en ${m.name}`).toBeLessThan(n);
+        }
+      }
+    }
   });
 
   it("el cuerpo tiene todos los morph targets pedidos", () => {

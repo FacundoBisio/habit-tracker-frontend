@@ -97,7 +97,7 @@ export default function SettingsPage() {
             <span>
               <span className="block font-medium">Personaje en 3D</span>
               <span className="block text-xs text-muted">
-                {webgl ? "Descarga el modelo la primera vez (~600 KB)." : "Tu dispositivo no soporta 3D: se usa el 2D."}
+                {webgl ? "Descarga el modelo la primera vez (~450 KB)." : "Tu dispositivo no soporta 3D: se usa el 2D."}
               </span>
             </span>
             <input

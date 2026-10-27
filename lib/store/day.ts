@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { addDays, weekRange } from "@/lib/domain/dates";
 import { isScheduledOn } from "@/lib/domain/schedule";
 import { computeStreak } from "@/lib/domain/streaks";
-import type { Habit } from "./db";
+import type { Entry, Habit } from "./db";
 import { useEntriesState, useHabitsState, useSettings, useToday } from "./hooks";
 
 /** Estado de un hábito en el día elegido (los campos `today*` son del día seleccionado, no siempre hoy). */
@@ -38,17 +38,23 @@ export function useDaySummary(selected?: string) {
 
   return useMemo(() => {
     const { start, end } = weekRange(day, settings.weekStartsOn);
+    const byHabit = new Map<string, Entry[]>();
+    for (const e of entries) {
+      const list = byHabit.get(e.habitId);
+      if (list) list.push(e);
+      else byHabit.set(e.habitId, [e]);
+    }
     const rows: DayRow[] = habits
       .filter((h) => isScheduledOn(h.schedule, day))
       .map((habit) => {
-        const mine = entries.filter((e) => e.habitId === habit.id);
+        const mine = byHabit.get(habit.id) ?? [];
         const onDay = mine.filter((e) => e.localDate === day);
         const weekDays = new Set(mine.filter((e) => e.localDate >= start && e.localDate <= end).map((e) => e.localDate));
         return {
           habit,
           todayIds: onDay.map((e) => e.id),
           todayTotal: onDay.reduce((a, e) => a + e.amount, 0),
-          streak: day === today ? computeStreak(entries, habit.id, habit.schedule, today, settings.weekStartsOn).current : 0,
+          streak: day === today ? computeStreak(mine, habit.id, habit.schedule, today, settings.weekStartsOn).current : 0,
           weekly: habit.schedule.type === "weekly" ? { done: weekDays.size, target: habit.schedule.times } : undefined,
         };
       });

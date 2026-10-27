@@ -9,7 +9,7 @@ import { TOUR_STEPS, findStep, stopTour, waitDone, type TourAnchor, type TourCon
 import { saveSettings } from "@/lib/store/actions";
 import { useHabitsState } from "@/lib/store/hooks";
 import { MascotFigure } from "./Mascot";
-import { ghostBtn, primaryBtn } from "./Sheet";
+import { ghostBtn } from "./Sheet";
 
 const PAD = 6;
 const GAP = 12;
@@ -102,6 +102,8 @@ export function Tour() {
   const available: number[] = [];
   for (let i = findStep(TOUR_STEPS, 0, 1, ctx); i !== -1; i = findStep(TOUR_STEPS, i + 1, 1, ctx)) available.push(i);
   const pos = available.indexOf(current) + 1;
+  // Sin hábitos todavía no están en pantalla los pasos de Hoy: se cuentan igual, para que el total no cambie
+  const total = hasHabits ? available.length : TOUR_STEPS.length;
   const prev = findStep(TOUR_STEPS, current - 1, -1, ctx);
   const isLast = findStep(TOUR_STEPS, current + 1, 1, ctx) === -1;
 
@@ -140,20 +142,20 @@ export function Tour() {
         </div>
         {waiting && <p className="mt-1 text-xs text-muted">Cuando lo crees, seguimos.</p>}
         <div className="mt-3 flex items-center gap-2">
-          <button className="min-h-11 px-1 text-sm text-muted" onClick={finish}>
+          <button className="min-h-11 shrink-0 px-1 text-sm whitespace-nowrap text-muted" onClick={finish}>
             Saltar recorrido
           </button>
-          <span className="ml-auto text-xs text-muted tabular-nums" aria-label={`Paso ${pos} de ${available.length}`}>
-            {pos}/{available.length}
+          <span className="ml-auto text-xs text-muted tabular-nums" aria-label={`Paso ${pos} de ${total}`}>
+            {pos}/{total}
           </span>
           {prev !== -1 && (
-            <button className={ghostBtn} onClick={() => setIndex(prev)}>
+            <button className={`${ghostBtn} shrink-0`} onClick={() => setIndex(prev)}>
               Atrás
             </button>
           )}
           <button
             ref={next}
-            className={`${primaryBtn} h-11 w-auto px-5`}
+            className="inline-flex h-11 shrink-0 items-center justify-center rounded-2xl bg-accent px-5 font-semibold text-accent-fg transition active:scale-[0.98] disabled:opacity-35"
             disabled={waiting}
             onClick={() => (isLast ? finish() : setIndex(findStep(TOUR_STEPS, current + 1, 1, ctx)))}
           >
