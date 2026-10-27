@@ -36,7 +36,7 @@ describe("poses", () => {
         expect(p.lift).toBeLessThan(0.6);
       }
     }
-  });
+  }, 60_000); // simula 20 s × 60 fps por actividad: con la máquina cargada pasa de los 5 s por defecto
 
   it("blink3 nunca es negativo (ni con tiempo negativo o NaN)", () => {
     for (const t of [-5, -0.001, 0, 1, 7.3, NaN]) expect(blink3(t)).toBeGreaterThanOrEqual(0);
