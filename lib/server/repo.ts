@@ -91,6 +91,17 @@ export interface Repo {
   upsertGoal(userId: string, goal: ServerGoal): Promise<void>;
   deleteGoals(userId: string, ids: string[]): Promise<void>;
 
+  // En bloque (sincronización): una escritura por tipo en vez de una por fila.
+  upsertHabits(userId: string, habits: ServerHabit[]): Promise<void>;
+  upsertGoals(userId: string, goals: ServerGoal[]): Promise<void>;
+  /**
+   * Idempotente por (userId, clientId). Devuelve los `clientId` que quedaron guardados (nuevos o ya existentes);
+   * los que no aparecen chocaron con otra fila (p. ej. un id ya usado).
+   */
+  insertEntries(userId: string, entries: NewEntry[]): Promise<string[]>;
+  /** Corre `fn` en una transacción: si algo falla no queda nada a medias. */
+  transaction<T>(fn: (repo: Repo) => Promise<T>): Promise<T>;
+
   getSettings(userId: string): Promise<ServerSettings>;
   updateSettings(userId: string, patch: Partial<ServerSettings>): Promise<void>;
 

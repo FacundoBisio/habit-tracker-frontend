@@ -5,7 +5,7 @@ import { AlertCircle, Check, Cloud, CloudOff, Info, Loader2, Moon, Sun, X } from
 import { useEffect, useState } from "react";
 import { dismiss, FAST_MS, useNoticeState, type Notice } from "@/lib/notify";
 import { applyTheme, effectiveTheme } from "@/lib/theme";
-import type { SyncStatus } from "@/lib/sync/engine";
+import { notifyRejected, type SyncStatus } from "@/lib/sync/engine";
 import { cn } from "@/lib/cn";
 import { IconChip } from "./HabitIcon";
 
@@ -116,7 +116,7 @@ function NoticePill({ n, waiting }: { n: Notice; waiting: number }) {
  * Franja superior de altura fija (no cambia nunca, así la pantalla no se mueve al registrar).
  * En reposo muestra marca, sincronización y tema; los avisos aparecen acá de a uno, en cola.
  */
-export function TopBar({ sync, pending }: { sync: SyncStatus; pending: number }) {
+export function TopBar({ sync, pending, rejected = 0 }: { sync: SyncStatus; pending: number; rejected?: number }) {
   const { current, waiting } = useNoticeState();
   const SyncIcon = sync === "syncing" ? Loader2 : sync === "off" || sync === "error" ? CloudOff : Cloud;
 
@@ -142,10 +142,22 @@ export function TopBar({ sync, pending }: { sync: SyncStatus; pending: number })
               SuperHábitos
             </span>
             <span className="flex items-center gap-1">
-              <span className="flex items-center gap-1.5 text-xs text-muted" title={pending ? `${pending} pendientes` : undefined}>
-                <SyncIcon className={cn("size-3.5", sync === "syncing" && "animate-spin")} />
-                {SYNC_LABEL[sync]}
-              </span>
+              {rejected > 0 && sync !== "syncing" && sync !== "off" ? (
+                // Registros que el servidor rechazó: se reintentan solos; tocando se puede descartarlos
+                <button
+                  onClick={() => notifyRejected(rejected)}
+                  title="Se reintenta en cada sincronización"
+                  className="flex items-center gap-1.5 rounded-full px-2 py-1 text-xs text-muted hover:bg-surface-2 hover:text-fg"
+                >
+                  <AlertCircle className="size-3.5" />
+                  {rejected === 1 ? "1 sin sincronizar" : `${rejected} sin sincronizar`}
+                </button>
+              ) : (
+                <span className="flex items-center gap-1.5 text-xs text-muted" title={pending ? `${pending} pendientes` : undefined}>
+                  <SyncIcon className={cn("size-3.5", sync === "syncing" && "animate-spin")} />
+                  {SYNC_LABEL[sync]}
+                </span>
+              )}
               <ThemeToggle />
             </span>
           </m.div>

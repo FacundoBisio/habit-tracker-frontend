@@ -5,14 +5,30 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { db } from "@/lib/store/db";
 import { loadSupabase } from "@/lib/supabase/browser";
 import { syncOnce, type SyncStatus } from "./engine";
+import { summarizeOutbox } from "./plan";
+
+const EMPTY = { pending: 0, rejected: [] as string[] };
 
 const POLL_MS = 60_000;
 const DEBOUNCE_MS = 1_500;
 
-/** Sincroniza al abrir, al volver la señal o la app, tras cambios locales y cada minuto (para ver lo del bot/Atajos). */
-export function useSync(): { status: SyncStatus; pending: number } {
+/**
+ * Sincroniza al abrir, al volver la señal o la app, tras cambios locales y cada minuto (para ver lo del bot/Atajos).
+ * `rejected`: registros que el servidor no aceptó (siguen en el dispositivo y se reintentan en cada sincronización).
+ */
+export function useSync(): { status: SyncStatus; pending: number; rejected: number } {
   const [status, setStatus] = useState<SyncStatus>("off");
-  const pending = useLiveQuery(() => db.outbox.count(), [], 0);
+  // Lo rechazado no cuenta como pendiente: si contara, el debounce de abajo sincronizaría en bucle.
+  const outbox = useLiveQuery(
+    async () => {
+      const [total, rejected] = await Promise.all([db.outbox.count(), db.outbox.where("rejected").above("").toArray()]);
+      return { pending: total - rejected.length, rejected: summarizeOutbox(rejected).rejected };
+    },
+    [],
+    EMPTY,
+  );
+  const pending = outbox.pending;
+  const rejected = outbox.rejected.length;
   const running = useRef(false);
   const again = useRef(false);
 
@@ -72,5 +88,5 @@ export function useSync(): { status: SyncStatus; pending: number } {
     return () => clearTimeout(t);
   }, [pending, status, run]);
 
-  return { status, pending };
+  return { status, pending, rejected };
 }

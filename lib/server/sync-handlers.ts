@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { nameSchema } from "@/lib/domain/name";
+import { HABIT_ICONS } from "@/lib/habit-icons";
 import type { MeDeps } from "./me-handlers";
 import type { ServerEntry, ServerGoal, ServerHabit } from "./repo";
-import { MAX_AMOUNT, isValidTimeZone } from "./validate";
+import { MAX_AMOUNT, MAX_BODY_BYTES, isValidTimeZone, readJsonBody } from "./validate";
 
 const uuid = z.string().uuid();
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -13,25 +14,39 @@ const schedule = z.union([
   z.object({ type: z.literal("days_of_week"), days: z.array(z.number().int().min(0).max(6)).min(1).max(7) }),
 ]);
 
+const ICON_KEYS = new Set<string>(HABIT_ICONS.map((i) => i.key));
+/** Emoji suelto (hábitos viejos guardaban un emoji en vez de la clave del ícono): solo pictogramas, hasta 8 caracteres. */
+const SHORT_EMOJI = /^(?:\p{Extended_Pictographic}|\p{Emoji_Component}|\p{Emoji_Modifier}|\u200d|\ufe0f|\u20e3)+$/u;
+const isShortEmoji = (s: string) => [...s].length <= 8 && SHORT_EMOJI.test(s) && /[^\x00-\x7f]/.test(s);
+/** Lo que guarda la app: un nombre ("green", "emerald", "teal"…), un hex o una variable CSS. */
+const COLOR = /^(?:[a-z][a-z0-9-]{0,23}|#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})|var\(--[a-z0-9-]{1,32}\))$/i;
+
 const habitSchema = z.object({
   id: uuid,
   name: z.string().min(1).max(80),
-  emoji: z.string().max(24),
-  color: z.string().max(20),
+  // Ícono, color y orden fuera de lo esperado se corrigen en vez de rechazar el lote entero (un hábito viejo
+  // importado con un valor raro dejaría el dispositivo "Sin sincronizar" para siempre).
+  emoji: z.string().max(24).refine((e) => ICON_KEYS.has(e) || isShortEmoji(e), "ícono inválido").catch("sparkles"),
+  color: z.string().max(40).regex(COLOR, "color inválido").catch("emerald"),
   kind: z.enum(["boolean", "quantity"]),
   unit: z.string().max(20).optional(),
   defaultAmount: z.number().positive().max(MAX_AMOUNT),
   schedule,
   archived: z.boolean(),
-  sortOrder: z.number().int(),
+  sortOrder: z.number().int().min(0).max(10_000).catch(0),
   aliases: z.array(z.string().max(60)).max(30),
 });
 
-const entrySchema = z.object({
+const MIN_OCCURRED_AT = Date.UTC(2000, 0, 1);
+const DAY_MS = 86_400_000;
+
+/** `now` acota el futuro: un registro no puede ser de más de un día adelante (margen para relojes y zonas). */
+const entrySchema = (now: number) => z.object({
   id: uuid,
   habitId: uuid,
   localDate: date,
-  occurredAt: z.number(),
+  // Fuera de rango (reloj del celular mal puesto) se acota en vez de rechazar el lote.
+  occurredAt: z.number().finite().transform((v) => Math.min(Math.max(v, MIN_OCCURRED_AT), now + DAY_MS)),
   amount: z.number().positive().max(MAX_AMOUNT),
   note: z.string().max(500).optional(),
   source: z.enum(["app", "shortcut", "siri", "bot", "import"]),
@@ -50,9 +65,9 @@ const goalSchema = z.object({
   links: z.array(z.object({ habitId: uuid, weight: z.number().positive().max(MAX_AMOUNT) })).max(50),
 });
 
-export const syncPush = z.object({
+export const syncPushSchema = (now: number) => z.object({
   habits: z.array(habitSchema).max(500).default([]),
-  entries: z.array(entrySchema).max(5000).default([]),
+  entries: z.array(entrySchema(now)).max(5000).default([]),
   goals: z.array(goalSchema).max(200).default([]),
   deleted: z
     .object({
@@ -110,43 +125,49 @@ export function createSyncHandlers(deps: MeDeps) {
     async push(req: Request) {
       const userId = await deps.getUserId(req);
       if (!userId) return Response.json({ ok: false, error: "No autenticado" }, { status: 401 });
-      const parsed = syncPush.safeParse(await req.json().catch(() => null));
+      // El tamaño se controla antes de parsear: un cuerpo enorme no llega a req.json()
+      const body = await readJsonBody(req, MAX_BODY_BYTES);
+      if (body.tooLarge) return Response.json({ ok: false, error: "Pedido demasiado grande" }, { status: 413 });
+      const parsed = syncPushSchema(deps.now().getTime()).safeParse(body.value);
       if (!parsed.success) {
         return Response.json({ ok: false, error: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") }, { status: 400 });
       }
       const { habits, entries, goals, deleted, settings } = parsed.data;
 
-      await deps.repo.deleteEntries(userId, deleted.entries);
-      await deps.repo.deleteGoals(userId, deleted.goals);
-      await deps.repo.deleteHabits(userId, deleted.habits);
+      // Todo o nada, y una escritura por tipo (no una ida y vuelta a la base por fila).
+      const { accepted, rejected } = await deps.repo.transaction(async (repo) => {
+        await repo.deleteEntries(userId, deleted.entries);
+        await repo.deleteGoals(userId, deleted.goals);
+        await repo.deleteHabits(userId, deleted.habits);
 
-      for (const h of habits) await deps.repo.upsertHabit(userId, h as ServerHabit);
-      // Solo se aceptan referencias a hábitos propios: un id ajeno nunca se vincula (ni se borraría en cascada).
-      const mine = new Set((await deps.repo.listHabits(userId)).map((h) => h.id));
-      for (const g of goals) {
-        await deps.repo.upsertGoal(userId, { ...g, links: g.links.filter((l) => mine.has(l.habitId)) } as ServerGoal);
-      }
+        await repo.upsertHabits(userId, habits as ServerHabit[]);
+        // Solo se aceptan referencias a hábitos propios: un id ajeno nunca se vincula (ni se borraría en cascada).
+        const mine = new Set((await repo.listHabits(userId)).map((h) => h.id));
+        await repo.upsertGoals(userId, goals.map((g) => ({ ...g, links: g.links.filter((l) => mine.has(l.habitId)) }) as ServerGoal));
 
-      let skipped = 0;
-      for (const e of entries) {
-        if (!mine.has(e.habitId)) {
-          skipped++;
-          continue;
+        const rejected: { id: string; reason: string }[] = [];
+        const candidates: typeof entries = [];
+        for (const e of entries) {
+          if (mine.has(e.habitId)) candidates.push(e);
+          else rejected.push({ id: e.id, reason: "El hábito no existe" });
         }
-        try {
-          await deps.repo.insertEntry(userId, { ...e, occurredAt: new Date(e.occurredAt) });
-        } catch {
-          skipped++; // p. ej. el hábito ya no existe (FK): se descarta sin frenar el resto
+        const stored = new Set(await repo.insertEntries(userId, candidates.map((e) => ({ ...e, occurredAt: new Date(e.occurredAt) }))));
+        const accepted: string[] = [];
+        for (const e of candidates) {
+          if (stored.has(e.clientId)) accepted.push(e.id);
+          else rejected.push({ id: e.id, reason: "Choca con otro registro" });
         }
-      }
-      if (settings) {
-        const { displayName, displayNameUpdatedAt, ...rest } = settings;
-        // El nombre: gana el cambio más nuevo (dos dispositivos pueden haberlo cambiado)
-        const current = await deps.repo.getSettings(userId);
-        const newer = displayName && (displayNameUpdatedAt ?? 0) > (current.displayNameUpdatedAt ?? -1);
-        await deps.repo.updateSettings(userId, newer ? { ...rest, displayName, displayNameUpdatedAt: displayNameUpdatedAt ?? deps.now().getTime() } : rest);
-      }
-      return Response.json({ ok: true, skipped });
+
+        if (settings) {
+          const { displayName, displayNameUpdatedAt, ...rest } = settings;
+          // El nombre: gana el cambio más nuevo (dos dispositivos pueden haberlo cambiado)
+          const current = await repo.getSettings(userId);
+          const newer = displayName && (displayNameUpdatedAt ?? 0) > (current.displayNameUpdatedAt ?? -1);
+          await repo.updateSettings(userId, newer ? { ...rest, displayName, displayNameUpdatedAt: displayNameUpdatedAt ?? deps.now().getTime() } : rest);
+        }
+        return { accepted, rejected };
+      });
+      return Response.json({ ok: true, accepted, rejected, skipped: rejected.length });
     },
   };
 }

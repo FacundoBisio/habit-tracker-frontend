@@ -4,7 +4,9 @@ import { toast } from "@/lib/notify";
 import { saveName } from "@/lib/store/actions";
 import { apiFetch, loadSupabase } from "@/lib/supabase/browser";
 import { db, withRemote, type Entry, type Goal, type Habit } from "@/lib/store/db";
-import { planProgress, planPull, planPush } from "./plan";
+import { planProgress, summarizeOutbox } from "./plan";
+import { applyPull } from "./pull";
+import { pushOutbox } from "./push";
 
 export type SyncStatus = "off" | "syncing" | "synced" | "pending" | "error";
 
@@ -79,36 +81,36 @@ export async function syncOnce(): Promise<SyncStatus> {
   if (firstSync) await enqueueEverything();
 
   const rows = await db.outbox.toArray();
-  const plan = planPush(rows.map((r) => ({ ...r, seq: r.seq! })));
+  const alreadyRejected = new Set(summarizeOutbox(rows).rejected);
   const settings = (await db.settings.get("me")) ?? { timezone: "America/Argentina/Cordoba", weekStartsOn: 1 };
+  const tables = { habit: db.habits, entry: db.entries, goal: db.goals } as const;
 
-  const [habits, entries, goals] = await Promise.all([
-    db.habits.bulkGet(plan.upserts.habit),
-    db.entries.bulkGet(plan.upserts.entry),
-    db.goals.bulkGet(plan.upserts.goal),
-  ]);
-
-  const push = await apiFetch("/api/sync", {
-    method: "POST",
-    body: JSON.stringify({
-      habits: habits.filter(Boolean),
-      entries: entries.filter(Boolean),
-      goals: goals.filter(Boolean).map((g) => ({ ...g!, completedAt: undefined })),
-      deleted: { habits: plan.deletes.habit, entries: plan.deletes.entry, goals: plan.deletes.goal },
-      settings: {
-        timezone: settings.timezone,
-        weekStartsOn: settings.weekStartsOn === 0 || settings.weekStartsOn === 6 ? settings.weekStartsOn : 1,
-        // La primera vez no se pisa el nombre que ya tenga la cuenta: se pregunta después (ver abajo)
-        ...(!firstSync && "name" in settings && settings.name ? { displayName: settings.name, displayNameUpdatedAt: settings.nameUpdatedAt } : {}),
+  // En tandas: una importación grande (o el primer inicio de sesión con mucha historia) no entra en un solo pedido.
+  const push = await pushOutbox(
+    rows.map((r) => ({ ...r, seq: r.seq! })),
+    {
+      timezone: settings.timezone,
+      weekStartsOn: settings.weekStartsOn === 0 || settings.weekStartsOn === 6 ? settings.weekStartsOn : 1,
+      // La primera vez no se pisa el nombre que ya tenga la cuenta: se pregunta después (ver abajo)
+      ...(!firstSync && "name" in settings && settings.name ? { displayName: settings.name, displayNameUpdatedAt: settings.nameUpdatedAt } : {}),
+    },
+    {
+      load: (kind, ids) => (tables[kind] as typeof db.habits).bulkGet(ids),
+      post: (body) => apiFetch("/api/sync", { method: "POST", body: JSON.stringify(body) }),
+      done: (seqs) => db.outbox.bulkDelete(seqs),
+      reject: async (seqs, reason) => {
+        await db.outbox.bulkUpdate(seqs.map((key) => ({ key, changes: { rejected: reason } })));
       },
-    }),
-  });
-  if (push.status === 401) {
+    },
+  );
+  if (push.status === "unauthorized") {
     await endSession();
     return "off";
   }
-  if (!push.ok) return "error";
-  await db.outbox.bulkDelete(rows.map((r) => r.seq!));
+  if (push.status === "error") return "error";
+  // Se avisa solo de lo que se rechazó por primera vez (los reintentos no vuelven a mostrar el aviso).
+  const fresh = push.rejected.filter((id) => !alreadyRejected.has(id)).length;
+  if (fresh) notifyRejected(fresh);
 
   const pull = await apiFetch("/api/sync");
   if (pull.status === 401) {
@@ -122,18 +124,11 @@ export async function syncOnce(): Promise<SyncStatus> {
   // Lo encolado mientras se sincronizaba (cambios nuevos) no se pisa ni se borra.
   const pending = new Set((await db.outbox.toArray()).map((r) => r.id));
 
+  // Solo se escribe lo que cambió: con los mismos datos el pull de cada minuto no toca IndexedDB (ni la UI).
   await withRemote(async () => {
-    const hp = planPull((await db.habits.toCollection().primaryKeys()) as string[], server.habits.map((h) => h.id), pending);
-    await db.habits.bulkPut(server.habits.filter((h) => hp.put.includes(h.id)));
-    await db.habits.bulkDelete(hp.remove);
-
-    const gp = planPull((await db.goals.toCollection().primaryKeys()) as string[], server.goals.map((g) => g.id), pending);
-    await db.goals.bulkPut(server.goals.filter((g) => gp.put.includes(g.id)));
-    await db.goals.bulkDelete(gp.remove);
-
-    const ep = planPull((await db.entries.toCollection().primaryKeys()) as string[], server.entries.map((e) => e.id), pending);
-    await db.entries.bulkPut(server.entries.filter((e) => ep.put.includes(e.id)));
-    await db.entries.bulkDelete(ep.remove);
+    await applyPull(db.habits, server.habits, pending);
+    await applyPull(db.goals, server.goals, pending);
+    await applyPull(db.entries, server.entries, pending);
   });
 
   try {
@@ -141,5 +136,25 @@ export async function syncOnce(): Promise<SyncStatus> {
   } catch {
     /* almacenamiento bloqueado: se volverá a subir todo, que es idempotente */
   }
-  return planProgress(await db.outbox.count());
+  // Lo rechazado no cuenta como pendiente (se informa aparte y se reintenta en la próxima)
+  const [total, rejected] = await Promise.all([db.outbox.count(), db.outbox.where("rejected").above("").count()]);
+  return planProgress(total - rejected);
+}
+
+/** Aviso con la opción de descartar; sin descartar, se reintenta solo en cada sincronización. */
+export function notifyRejected(n: number) {
+  toast.error(n === 1 ? "1 registro no se pudo sincronizar" : `${n} registros no se pudieron sincronizar`, {
+    duration: 8000,
+    action: { label: "Descartar", onClick: () => void discardRejected() },
+  });
+}
+
+/** Descarta lo que el servidor rechazó: se saca de la cola y del dispositivo (no se reintenta más). */
+export async function discardRejected() {
+  const rows = await db.outbox.where("rejected").above("").toArray();
+  const ids = [...new Set(rows.filter((r) => r.kind === "entry").map((r) => r.id))];
+  await withRemote(async () => {
+    await db.entries.bulkDelete(ids);
+  });
+  await db.outbox.bulkDelete(rows.map((r) => r.seq!));
 }

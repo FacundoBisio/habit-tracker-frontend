@@ -62,6 +62,8 @@ export interface OutboxItem {
   kind: "habit" | "entry" | "goal";
   id: string;
   op: "upsert" | "delete";
+  /** Motivo si el servidor lo rechazó: sigue en la cola (se reintenta) pero no cuenta como pendiente. */
+  rejected?: string;
 }
 
 // Mientras se aplican cambios que vienen del servidor no se encolan (evita eco de sincronización).
@@ -91,6 +93,8 @@ class AppDB extends Dexie {
       settings: "id",
     });
     this.version(2).stores({ outbox: "++seq, [kind+id]" });
+    // Índice de lo rechazado por el servidor (las filas sin motivo no entran al índice): contarlo es barato.
+    this.version(3).stores({ outbox: "++seq, [kind+id], rejected" });
 
     const track = (table: Table<{ id: string }, string>, kind: OutboxItem["kind"]) => {
       const enqueue = (id: string, op: OutboxItem["op"]) => {
